@@ -2,60 +2,40 @@ import { renderConnectionBadge } from "../components/connection-badge";
 import { renderParticipantList } from "../components/participant-list";
 import type { RoomViewHandles } from "../types";
 
+/**
+ * Room page — responsive, desktop-first game interface.
+ *
+ * DOM (see .vb-room-page/.vb-room-shell in styles.css):
+ *   main.vb-room-page
+ *     div.vb-room-shell
+ *       header.vb-room-header   — brand, room code + copy, status pills, leave
+ *       div.vb-room-main
+ *         div.vb-room-primary   — video region, buzzer (main.ts appends)
+ *         aside.vb-room-sidebar — host controls, scoreboard, diagnostics
+ */
 export function renderRoomView(opts: {
   code: string;
   isHost: boolean;
   onLeave(): void;
 }): RoomViewHandles {
   const root = document.createElement("main");
-  root.className = "vb-room";
+  root.className = "vb-room-page";
 
-  // Prominent network banner (a11y: announced via role=alert).
-  const connBanner = document.createElement("div");
-  connBanner.className = "vb-conn-banner";
-  connBanner.setAttribute("role", "alert");
-  connBanner.hidden = true;
-  connBanner.textContent = "Connection lost — reconnecting…";
+  const shell = document.createElement("div");
+  shell.className = "vb-room-shell";
 
-  /* ---------- Round status pill (always visible) ---------- */
-  const roundBadge = document.createElement("span");
-  roundBadge.className = "vb-status-pill";
-  roundBadge.hidden = true;
+  /* ---------- Header ---------- */
 
-  // Header: leave action + live connection badge
-  const header = document.createElement("div");
-  header.className = "vb-room__header";
+  const header = document.createElement("header");
+  header.className = "vb-room-header";
 
-  const leaveBtn = document.createElement("button");
-  leaveBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
-  leaveBtn.textContent = "← Leave";
-  leaveBtn.addEventListener("click", () => opts.onLeave());
+  const brand = document.createElement("span");
+  brand.className = "vb-brand";
+  brand.textContent = "Video Buzzer";
 
-  const badge = renderConnectionBadge();
-  header.append(leaveBtn, badge.root);
-
-  // Shareable code card
-  const card = document.createElement("section");
-  card.className = "vb-code-card";
-
-  const cardTop = document.createElement("div");
-  cardTop.className = "vb-code-card__top";
-
-  const codeLabel = document.createElement("span");
-  codeLabel.className = "vb-label";
-  codeLabel.textContent = "Room code";
-
-  cardTop.append(codeLabel);
-  if (opts.isHost) {
-    const hostTag = document.createElement("span");
-    hostTag.className = "vb-host-tag";
-    hostTag.textContent = "You are the host";
-    cardTop.append(hostTag);
-  }
-  cardTop.append(roundBadge);
-
-  const codeRow = document.createElement("div");
-  codeRow.className = "vb-code-row";
+  // Room code + copy invite — compact, always visible.
+  const codeGroup = document.createElement("div");
+  codeGroup.className = "vb-header-code";
 
   const codeEl = document.createElement("span");
   codeEl.className = "vb-code";
@@ -64,6 +44,7 @@ export function renderRoomView(opts: {
   const copyBtn = document.createElement("button");
   copyBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
   copyBtn.textContent = "Copy link";
+  copyBtn.setAttribute("aria-label", "Copy invite link");
 
   let resetTimer = 0;
   function flash(text: string): void {
@@ -82,34 +63,78 @@ export function renderRoomView(opts: {
     );
   });
 
-  codeRow.append(codeEl, copyBtn);
-  card.append(cardTop, codeRow);
+  codeGroup.append(codeEl, copyBtn);
+
+  // Status pills: round state + connected player count.
+  const roundBadge = document.createElement("span");
+  roundBadge.className = "vb-status-pill";
+  roundBadge.hidden = true;
+
+  const playerCount = document.createElement("span");
+  playerCount.className = "vb-status-pill";
+  playerCount.hidden = true;
+
+  const badge = renderConnectionBadge();
+
+  const hostTag = document.createElement("span");
+  hostTag.className = "vb-host-tag";
+  hostTag.hidden = !opts.isHost;
+  hostTag.textContent = "Host";
+
+  const leaveBtn = document.createElement("button");
+  leaveBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
+  leaveBtn.textContent = "← Leave";
+  leaveBtn.addEventListener("click", () => opts.onLeave());
+
+  header.append(brand, codeGroup, roundBadge, playerCount, badge.root, hostTag, leaveBtn);
+
+  /* ---------- Connection banner ---------- */
+
+  const connBanner = document.createElement("div");
+  connBanner.className = "vb-conn-banner";
+  connBanner.setAttribute("role", "alert");
+  connBanner.hidden = true;
+  connBanner.textContent = "Connection lost — reconnecting…";
+
+  /* ---------- Main grid ---------- */
+
+  const mainArea = document.createElement("div");
+  mainArea.className = "vb-room-main";
+
+  // Primary column: video region + buzzer (main.ts appends player/buzzer).
+  const primary = document.createElement("div");
+  primary.className = "vb-room-primary";
+
+  const videoRegion = document.createElement("div");
+  videoRegion.className = "vb-video-region";
+
+  const primaryActions = document.createElement("div");
+  primaryActions.className = "vb-primary-actions";
+
+  videoRegion.append(); // player root appended by main.ts
+  primary.append(videoRegion, primaryActions);
+
+  // Sidebar: host controls, scoreboard, hint, diagnostics.
+  const sidebar = document.createElement("aside");
+  sidebar.className = "vb-room-sidebar";
+
+  const participants = renderParticipantList();
 
   const hint = document.createElement("p");
   hint.className = "vb-hint";
   hint.textContent = "Share the link — answers are given by voice on Discord.";
 
-  const participants = renderParticipantList();
+  sidebar.append(participants.root, hint);
 
-  // Responsive room grid: flexible video column + fixed sidebar (code/scores).
-  // Mobile (<900px) collapses to one column with the sidebar below the player.
-  const layout = document.createElement("div");
-  layout.className = "room-layout";
-
-  const videoColumn = document.createElement("div");
-  videoColumn.className = "video-column video-column--main";
-
-  const sidebar = document.createElement("aside");
-  sidebar.className = "room-sidebar";
-  sidebar.append(card, hint, participants.root);
-
-  layout.append(videoColumn, sidebar);
-
-  root.append(connBanner, header, layout);
+  mainArea.append(primary, sidebar);
+  shell.append(header, connBanner, mainArea);
+  root.append(shell);
 
   return {
     root,
-    bodyTop: videoColumn,
+    videoColumn: videoRegion,
+    primaryColumn: primaryActions,
+    sidebar,
     setParticipants: participants.setParticipants,
     setConnectionState(online) {
       badge.setOnline(online);
@@ -119,6 +144,10 @@ export function renderRoomView(opts: {
       roundBadge.hidden = !state;
       roundBadge.dataset.state = state ?? "";
       roundBadge.textContent = state ? `Round · ${state}` : "";
+    },
+    setPlayerCount(online, total) {
+      playerCount.hidden = total === 0;
+      playerCount.textContent = `${online}/${total} online`;
     },
   };
 }

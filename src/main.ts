@@ -243,14 +243,14 @@ async function enterRoom(
       hasPendingAttempt: false,
     });
 
-    if (player) view.bodyTop.append(player.root);
+    if (player) view.videoColumn.append(player.root);
     else {
       const note = document.createElement("p");
       note.className = "vb-hint";
       note.textContent = "This room has no video.";
-      view.bodyTop.append(note);
+      view.videoColumn.append(note);
     }
-    view.bodyTop.append(buzzPanel.root);
+    view.primaryColumn.append(buzzPanel.root);
 
     /* Host moderation */
     let moderating = false;
@@ -296,7 +296,7 @@ async function enterRoom(
             "All scores reset to 0",
           ),
       });
-      view.bodyTop.append(hostPanel.root);
+      view.sidebar.append(hostPanel.root);
     }
 
     /* Diagnostics (collapsible, read-only) */
@@ -308,7 +308,7 @@ async function enterRoom(
     });
     diagnostics.setRole(isHost);
     diagnostics.setRoomCode(code);
-    view.bodyTop.append(diagnostics.root);
+    view.sidebar.append(diagnostics.root);
 
     app.replaceChildren(view.root);
     activeBuzzPanel = buzzPanel;
@@ -342,6 +342,10 @@ async function enterRoom(
       (list) => {
         participants = list;
         view.setParticipants(list);
+        view.setPlayerCount(
+          list.filter((p) => p.presenceState === "online").length,
+          list.length,
+        );
         resolveWinnerColor();
       },
     );

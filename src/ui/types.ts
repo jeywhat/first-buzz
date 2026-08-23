@@ -11,10 +11,14 @@ export interface EntryViewCallbacks {
 
 export interface RoomViewHandles {
   root: HTMLElement;
-  /** Insertion point above the code card (player, buzzer). */
-  bodyTop: HTMLElement;
+  /** Video region inside the primary column (player mounts here). */
+  videoColumn: HTMLElement;
+  /** Primary-column actions area under the video (buzzer mounts here). */
+  primaryColumn: HTMLElement;
+  /** Sidebar (host controls, scoreboard, diagnostics). */
+  sidebar: HTMLElement;
   setParticipants(list: ParticipantView[]): void;
   setConnectionState(online: boolean): void;
-  /** Always-visible round status pill (idle/open/buzzed/resolved/finished). */
   setRoundStatus(state: string | null): void;
+  setPlayerCount(online: number, total: number): void;
 }

@@ -323,12 +323,44 @@ export function createYoutubePlayer(
     };
     collect("iframe", frame.querySelector("iframe"));
     collect("target(mount)", frame.querySelector(".vb-video-mount"));
-    collect("player-shell", frame);
-    collect("video-column", frame.parentElement);
-    collect("room-layout", frame.parentElement?.parentElement ?? null);
-    collect("room", frame.closest(".vb-room"));
+    collect("video-shell", frame);
+    collect("player-section", frame.parentElement);
+    collect("video-region", frame.parentElement?.parentElement ?? null);
+    collect("room-primary", frame.closest(".vb-room-primary"));
+    collect("room-main", frame.closest(".vb-room-main"));
+    collect("room-shell", frame.closest(".vb-room-shell"));
+    collect("room-page", frame.closest(".vb-room-page"));
     collect("app-root", document.getElementById("app"));
     console.table(rows);
+  }
+
+  /** DEV-only: prescribed responsive layout warnings (viewport/shell/overflow). */
+  function runResponsiveDiagnostics(): void {
+    if (!import.meta.env.DEV) return;
+    logLayoutTable();
+    const shellW = frame.clientWidth;
+    const shellH = frame.clientHeight;
+    const warnings: string[] = [];
+    if (innerWidth >= 1600 && shellW > 0 && shellW < 1100) {
+      warnings.push(
+        `viewport ${innerWidth}px ≥1600 but video shell is only ${shellW}px (<1100px)`,
+      );
+    }
+    if (shellW < 200 || shellH < 200) {
+      warnings.push(`video shell ${shellW}x${shellH}px is under 200px`);
+    }
+    if (document.documentElement.scrollWidth > innerWidth) {
+      warnings.push("horizontal document overflow detected");
+    }
+    const hiddenError = frame.querySelector(".vb-video-error[hidden]");
+    if (hiddenError && getComputedStyle(hiddenError).display !== "none") {
+      warnings.push("hidden .vb-video-error overlay has a non-none computed display");
+    }
+    if (warnings.length) console.warn("[vb-player] layout warnings:", warnings);
+  }
+
+  function onDevResize(): void {
+    runResponsiveDiagnostics();
   }
 
   /** DEV-only: visible warning when the shell drops below 200px wide. */
@@ -351,10 +383,11 @@ export function createYoutubePlayer(
   function attachLayoutObserver(): void {
     layoutObserver ??= new ResizeObserver(() => {
       applyPlayerSize();
-      logLayoutTable();
+      runResponsiveDiagnostics();
       checkDevShellWidth();
     });
     layoutObserver.observe(frame);
+    window.addEventListener("resize", onDevResize);
   }
 
   /**
@@ -564,6 +597,7 @@ export function createYoutubePlayer(
       disposed = true;
       retrying = false;
       window.clearInterval(ticker);
+      window.removeEventListener("resize", onDevResize);
       layoutObserver?.disconnect();
       layoutObserver = null;
       devWidthWarning?.remove();
