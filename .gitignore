@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment (contains only public config, but keep local copies out of VCS)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Firebase local emulators
+.firebase/
+firebase-debug.log
+*-debug.log
+
+# Real Firebase project binding (keep the committed example instead)
+.firebaserc
