@@ -101,22 +101,23 @@ export function renderRoomView(opts: {
   const mainArea = document.createElement("div");
   mainArea.className = "vb-room-main";
 
-  // Primary column: video region + buzzer (main.ts appends player/buzzer).
+  // Primary column: video region only (buzzer lives in sidebar for viewport fit).
   const primary = document.createElement("div");
   primary.className = "vb-room-primary";
 
   const videoRegion = document.createElement("div");
   videoRegion.className = "vb-video-region";
 
-  const primaryActions = document.createElement("div");
-  primaryActions.className = "vb-primary-actions";
-
   videoRegion.append(); // player root appended by main.ts
-  primary.append(videoRegion, primaryActions);
+  primary.append(videoRegion);
 
-  // Sidebar: host controls, scoreboard, hint, diagnostics.
+  // Sidebar: buzzer (top, sticky) + participants + host controls + diagnostics.
   const sidebar = document.createElement("aside");
   sidebar.className = "vb-room-sidebar";
+
+  // Buzzer slot — first child so it stays visible via position:sticky.
+  const buzzerSlot = document.createElement("div");
+  buzzerSlot.className = "vb-buzzer-slot";
 
   const participants = renderParticipantList();
 
@@ -124,7 +125,7 @@ export function renderRoomView(opts: {
   hint.className = "vb-hint";
   hint.textContent = "Share the link — answers are given by voice on Discord.";
 
-  sidebar.append(participants.root, hint);
+  sidebar.append(buzzerSlot, participants.root, hint);
 
   mainArea.append(primary, sidebar);
   shell.append(header, connBanner, mainArea);
@@ -133,7 +134,7 @@ export function renderRoomView(opts: {
   return {
     root,
     videoColumn: videoRegion,
-    primaryColumn: primaryActions,
+    buzzerColumn: buzzerSlot,
     sidebar,
     setParticipants: participants.setParticipants,
     setConnectionState(online) {

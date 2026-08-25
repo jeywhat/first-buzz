@@ -13,8 +13,8 @@ export interface RoomViewHandles {
   root: HTMLElement;
   /** Video region inside the primary column (player mounts here). */
   videoColumn: HTMLElement;
-  /** Primary-column actions area under the video (buzzer mounts here). */
-  primaryColumn: HTMLElement;
+  /** Buzzer slot at the top of the sidebar. */
+  buzzerColumn: HTMLElement;
   /** Sidebar (host controls, scoreboard, diagnostics). */
   sidebar: HTMLElement;
   setParticipants(list: ParticipantView[]): void;

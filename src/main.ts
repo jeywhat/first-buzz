@@ -27,6 +27,7 @@ import {
   fetchRoom,
   fetchRoomStatus,
   parseRoomCode,
+  setAllowHostToBuzz,
 } from "./lib/rooms";
 import * as presenceService from "./services/presenceService";
 import {
@@ -40,9 +41,9 @@ import {
 import { extractVideoId } from "./lib/youtube";
 import {
   createBuzzPanel,
-  type BuzzPanelHandles,
 } from "./ui/components/buzz-panel";
 import { createDiagnostics } from "./ui/components/diagnostics";
+import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
 import {
   createYoutubePlayer,
   type YoutubePlayerHandles,
@@ -69,9 +70,6 @@ const ROOM_PATH_RE = /^\/room\/([A-Za-z0-9]{6})$/i;
 
 let stopRoom: (() => void) | null = null;
 let currentEntry: ReturnType<typeof renderEntryView> | null = null;
-// Live buzzer wiring for the Space key handler (null outside a room).
-let activeBuzzPanel: BuzzPanelHandles | null = null;
-let activeDoBuzz: (() => void) | null = null;
 
 /* ---------- Routing helpers ---------- */
 
@@ -182,7 +180,7 @@ async function enterRoom(
       allowHostToBuzz?: boolean;
     };
     const isHost = meta.hostUid === uid;
-    const allowHostToBuzz = meta.allowHostToBuzz === true;
+    let allowHostToBuzz = meta.allowHostToBuzz === true;
 
     const view = renderRoomView({
       code,
@@ -250,7 +248,7 @@ async function enterRoom(
       note.textContent = "This room has no video.";
       view.videoColumn.append(note);
     }
-    view.primaryColumn.append(buzzPanel.root);
+    view.buzzerColumn.append(buzzPanel.root);
 
     /* Host moderation */
     let moderating = false;
@@ -295,7 +293,29 @@ async function enterRoom(
             () => resetScores(code, participants.map((p) => p.uid)),
             "All scores reset to 0",
           ),
+        onToggleHostBuzz: (allow) => {
+          allowHostToBuzz = allow;
+          buzzPanel.setContext({
+            playerId: uid,
+            viewerIsHost: isHost,
+            allowHostToBuzz: allow,
+            hasPendingAttempt: false,
+          });
+          void setAllowHostToBuzz(code, allow).catch(() => {
+            // Revert on failure so UI and server stay consistent.
+            allowHostToBuzz = !allow;
+            hostPanel?.setHostBuzzAllowed(allowHostToBuzz);
+            buzzPanel.setContext({
+              playerId: uid,
+              viewerIsHost: isHost,
+              allowHostToBuzz: allowHostToBuzz,
+              hasPendingAttempt: false,
+            });
+            toasts.show("Could not update host buzz setting.", "error");
+          });
+        },
       });
+      hostPanel.setHostBuzzAllowed(allowHostToBuzz);
       view.sidebar.append(hostPanel.root);
     }
 
@@ -311,8 +331,39 @@ async function enterRoom(
     view.sidebar.append(diagnostics.root);
 
     app.replaceChildren(view.root);
-    activeBuzzPanel = buzzPanel;
-    activeDoBuzz = doBuzz;
+
+    /* Dev-only: verify buzzer button is visible in the initial viewport. */
+    if (import.meta.env.DEV) {
+      const checkBuzzerVisibility = (): void => {
+        const btn = buzzPanel.root.querySelector<HTMLButtonElement>(".vb-buzz-btn");
+        if (!btn) return;
+        const { width, height, top, bottom } = btn.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        if (vw >= 1100 && vh >= 720 && (bottom < 0 || top > vh || width === 0 || height === 0)) {
+          console.warn(
+            `[vb-layout] buzzer button is below the fold at ${vw}×${vh} — ` +
+            `getBoundingClientRect: top=${Math.round(top)} bottom=${Math.round(bottom)}`,
+          );
+        }
+      };
+      // Check after layout settles, and on resize.
+      requestAnimationFrame(() => requestAnimationFrame(checkBuzzerVisibility));
+      window.addEventListener("resize", checkBuzzerVisibility, { passive: true });
+    }
+
+    /* Keyboard shortcuts (Space / Enter / NumpadEnter) */
+    let modalOpen = false;
+    hostPanel?.onModalOpenChange?.((open: boolean) => { modalOpen = open; });
+    const unKeyboard = setupKeyboardBuzz({
+      getState: () => ({
+        buzzEnabled: buzzPanel.isEnabled(),
+        connected: localConnected,
+        modalOpen,
+      }),
+      onBuzz: () => doBuzz(),
+      onDebug: import.meta.env.DEV ? (msg) => console.debug(msg) : undefined,
+    });
 
     /* Live subscriptions */
     let localConnected = true;
@@ -415,6 +466,7 @@ async function enterRoom(
     });
 
     stopRoom = () => {
+      unKeyboard();
       unParticipants();
       unPresenceDebug();
       unConnection();
@@ -426,8 +478,6 @@ async function enterRoom(
       buzzPanel.dispose();
       diagnostics.dispose();
       void presenceService.stopPresence();
-      activeBuzzPanel = null;
-      activeDoBuzz = null;
     };
   } catch (err) {
     bounceHome(describeDbError(err), code);
@@ -514,25 +564,6 @@ async function route(): Promise<void> {
 
 async function boot(): Promise<void> {
   window.addEventListener("popstate", () => void route());
-
-  // Space = BUZZ, unless the user is typing in a text field.
-  window.addEventListener("keydown", (event) => {
-    if (event.code !== "Space" || event.repeat) return;
-    const el = document.activeElement as HTMLElement | null;
-    if (
-      el &&
-      (el.tagName === "INPUT" ||
-        el.tagName === "TEXTAREA" ||
-        el.tagName === "SELECT" ||
-        el.isContentEditable)
-    ) {
-      return;
-    }
-    if (activeBuzzPanel?.isEnabled() && activeDoBuzz) {
-      event.preventDefault();
-      activeDoBuzz();
-    }
-  });
 
   await route();
 }

@@ -37,7 +37,7 @@ export async function createRoom(hostUid: UserId, videoId: string): Promise<Room
     // Single atomic room write: the security rules allow room creation only at
     // the room root and only when meta.hostUid equals the creator's uid.
     await set(ref(db, roomPath(code)), {
-      meta: { hostUid, createdAt: now, lastActivityAt: now, allowHostToBuzz: false },
+      meta: { hostUid, createdAt: now, lastActivityAt: now, allowHostToBuzz: true },
       video: { videoId, playing: false, currentTimeSec: 0, changedAt: now, changedBy: hostUid, seq: 0 },
       game: {
         status: "lobby",
@@ -102,5 +102,16 @@ export async function deleteRoom(code: RoomCode): Promise<void> {
 export async function touchRoomActivity(code: RoomCode): Promise<void> {
   await update(ref(getFirebaseDatabase(), roomMetaPath(code)), {
     lastActivityAt: serverNow(),
+  });
+}
+
+/**
+ * Host-only: toggles whether the host may also buzz. Rules restrict the write
+ * to the room host and validate the value as a boolean. The buzzer's enabled
+ * state is derived from this flag via evaluateBuzz().
+ */
+export async function setAllowHostToBuzz(code: RoomCode, allow: boolean): Promise<void> {
+  await update(ref(getFirebaseDatabase(), roomMetaPath(code)), {
+    allowHostToBuzz: allow,
   });
 }

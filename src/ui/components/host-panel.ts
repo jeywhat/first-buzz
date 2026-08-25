@@ -8,6 +8,8 @@ export interface HostPanelCallbacks {
   /** Broadcasts the current position to every client (seq bump). */
   onResync(): void;
   onResetScores(): void;
+  /** Toggles whether the host may also buzz. */
+  onToggleHostBuzz(allow: boolean): void;
 }
 
 export interface HostPanelHandles {
@@ -18,6 +20,10 @@ export interface HostPanelHandles {
   setVideoPlaying(playing: boolean): void;
   /** Disables every control while a moderation write is in flight. */
   setBusy(busy: boolean): void;
+  /** Subscribe to modal open/close state for keyboard shortcut suppression. */
+  onModalOpenChange(callback: (open: boolean) => void): void;
+  /** Reflects the current host-buzz allowance in the toggle. */
+  setHostBuzzAllowed(allow: boolean): void;
 }
 
 function makeButton(label: string, className: string): HTMLButtonElement {
@@ -36,6 +42,20 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   const label = document.createElement("span");
   label.className = "vb-host-panel__label";
   label.textContent = "Host controls";
+
+  /* Host-buzz toggle — lets the host also play along. */
+  const hostBuzzRow = document.createElement("label");
+  hostBuzzRow.className = "vb-host-buzz-row";
+
+  const hostBuzzToggle = document.createElement("input");
+  hostBuzzToggle.type = "checkbox";
+  hostBuzzToggle.className = "vb-host-buzz-toggle";
+
+  const hostBuzzText = document.createElement("span");
+  hostBuzzText.className = "vb-host-buzz-text";
+  hostBuzzText.textContent = "Host can buzz";
+
+  hostBuzzRow.append(hostBuzzToggle, hostBuzzText);
 
   /* Judgment actions after a buzz */
   const actions = document.createElement("div");
@@ -102,7 +122,7 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   modalBox.append(modalTitle, modalText, modalActions);
   modal.append(modalBox);
 
-  root.append(label, actions, row);
+  root.append(label, hostBuzzRow, actions, row);
   root.append(modal);
 
   /* ---------- state ---------- */
@@ -110,6 +130,12 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   let round: RoundData | null = null;
   let playing = false;
   let busy = false;
+  let hostBuzzAllowed = false;
+  let modalCallback: ((open: boolean) => void) | null = null;
+
+  function notifyModalChange(open: boolean): void {
+    modalCallback?.(open);
+  }
 
   function render(): void {
     const awaitingVerdict = round?.state === "buzzed";
@@ -139,13 +165,21 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   resyncBtn.addEventListener("click", guard(cb.onResync));
   resetBtn.addEventListener("click", guard(() => {
     modal.hidden = false;
+    notifyModalChange(true);
   }));
   modalCancel.addEventListener("click", () => {
     modal.hidden = true;
+    notifyModalChange(false);
   });
   modalConfirm.addEventListener("click", () => {
     modal.hidden = true;
+    notifyModalChange(false);
     cb.onResetScores();
+  });
+
+  hostBuzzToggle.addEventListener("change", () => {
+    hostBuzzAllowed = hostBuzzToggle.checked;
+    cb.onToggleHostBuzz(hostBuzzAllowed);
   });
 
   render();
@@ -161,8 +195,16 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
       render();
     },
     setBusy(value) {
+      if (busy === value) return;
       busy = value;
       render();
+    },
+    onModalOpenChange(callback) {
+      modalCallback = callback;
+    },
+    setHostBuzzAllowed(allow) {
+      hostBuzzAllowed = allow;
+      hostBuzzToggle.checked = allow;
     },
   };
 }

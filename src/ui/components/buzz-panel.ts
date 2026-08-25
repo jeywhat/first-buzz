@@ -80,7 +80,12 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   statusLine.className = "vb-buzz-status";
   statusLine.setAttribute("aria-live", "polite");
 
-  root.append(winnerCard, pausedPill, btn, statusLine);
+  // Keyboard shortcut hint — hidden on touch-only devices via CSS.
+  const kbdHint = document.createElement("p");
+  kbdHint.className = "vb-buzz-kbd-hint";
+  kbdHint.textContent = "Press Space or Enter to buzz";
+
+  root.append(winnerCard, pausedPill, btn, statusLine, kbdHint);
 
   /* ---------- state ---------- */
 

@@ -355,6 +355,20 @@
   opacity: 1;
 }
 
+/* Keyboard shortcut hint — de-emphasized, hidden on touch-only devices. */
+.vb-buzz-kbd-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.45;
+  text-align: center;
+}
+
+@media (pointer: coarse) {
+  .vb-buzz-kbd-hint {
+    display: none;
+  }
+}
+
 .vb-winner-card {
   display: flex;
   align-items: center;
@@ -404,6 +418,28 @@
   background: #181b23;
   border: 1px solid #2a2f3d;
   border-radius: 14px;
+}
+
+/* Host-buzz toggle */
+.vb-host-buzz-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.vb-host-buzz-toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: #e11d48;
+  cursor: pointer;
+  margin: 0;
+}
+
+.vb-host-buzz-text {
+  opacity: 0.9;
 }
 
 .vb-host-row {
@@ -900,10 +936,6 @@
 .vb-room-primary {
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto;
-  gap: var(--room-gap);
-  align-content: start;
 }
 
 .vb-video-region {
@@ -912,7 +944,8 @@
   isolation: isolate;
 }
 
-.vb-primary-actions {
+/* Buzzer slot — sits at the top of the sidebar; sticky on desktop scroll. */
+.vb-buzzer-slot {
   min-width: 0;
 }
 
@@ -934,6 +967,31 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
+  }
+
+  /* Buzzer stays visible at top of sidebar while content scrolls beneath. */
+  .vb-buzzer-slot {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    /* Opaque background so scrolled content doesn't bleed through. */
+    background: #12141a;
+    padding-bottom: 4px;
+  }
+
+  .vb-buzzer-slot .vb-buzz {
+    margin-bottom: 0;
+  }
+}
+
+/* Mobile/tablet: constrain video so buzzer is reachable without scrolling. */
+@media (max-width: 1099px) {
+  .vb-video-frame {
+    max-height: calc(100dvh - 360px);
+  }
+
+  .vb-buzzer-slot .vb-buzz {
+    margin-bottom: 0;
   }
 }
 
