@@ -9,7 +9,7 @@ import type { UserId } from "./common";
  * echoes and out-of-order snapshots never retrigger actions.
  */
 export interface VideoState {
-  /** YouTube video id selected by the host. */
+  /** YouTube video id selected by the host. Empty string = idle/no video. */
   videoId: string;
   /** True while playback should be running for everyone. */
   playing: boolean;
@@ -19,6 +19,10 @@ export interface VideoState {
   changedAt: number;
   /** Uid of whoever made the change. */
   changedBy: UserId;
-  /** Monotonic sequence number, unique per room. */
+  /** Monotonic sequence number, unique per room (= playback.sequenceNumber). */
   seq: number;
+  /** Queue item backing the current video; null/absent for legacy rooms. */
+  activeQueueItemId?: string | null;
+  /** Bumped by the host on every queue launch; invalidates old sessions. */
+  videoSessionId?: number;
 }

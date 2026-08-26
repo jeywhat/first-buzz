@@ -41,9 +41,27 @@ import {
 } from "./lib/video";
 import { extractVideoId } from "./lib/youtube";
 import {
+  addToQueue,
+  clearNonActiveQueue,
+  launchQueueItem,
+  moveQueueItem,
+  removeQueueItem,
+  watchVideoQueue,
+} from "./lib/videoQueue";
+import {
+  pickNextLaunchTarget,
+  resolveQueueView,
+} from "./types/queue";
+import type { VideoQueueSnapshot } from "./types/queue";
+import {
   createBuzzPanel,
 } from "./ui/components/buzz-panel";
 import { createBuzzerStage } from "./ui/components/buzzer-stage";
+import { createPlayerQueue } from "./ui/components/player-queue";
+import {
+  createVideoQueuePanel,
+  type VideoQueuePanelHandles,
+} from "./ui/components/video-queue-panel";
 import { createDiagnostics } from "./ui/components/diagnostics";
 import { createSoundPanel } from "./ui/components/sound-panel";
 import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
@@ -120,9 +138,10 @@ function showEntry(initialCode = "", message = ""): void {
 }
 
 async function handleCreate(youtubeUrl: string, name: string): Promise<void> {
-  // View validated the format; extraction here stays defensive.
-  const videoId = extractVideoId(youtubeUrl);
-  if (!videoId) {
+  // URL is optional (queue-driven rooms). Empty string = idle room; a
+  // non-empty value stays defensively validated here too.
+  const videoId = youtubeUrl ? extractVideoId(youtubeUrl) ?? "" : "";
+  if (youtubeUrl && !videoId) {
     currentEntry?.showError("Enter a valid YouTube URL.");
     return;
   }
@@ -208,22 +227,53 @@ async function enterRoom(
       },
     });
 
-    /* Synced YouTube player */
+    /* Synced YouTube player — created LAZILY on the first real video id so an
+       empty room shows the idle placeholder instead of a black iframe. */
     let player: YoutubePlayerHandles | null = null;
-    if (videoId) {
-      player = createYoutubePlayer(videoId, {
+
+    const hostActionHandler = (
+      action: "play" | "pause" | "seek" | "restart",
+      positionSec: number,
+    ) => {
+      const write =
+        action === "play"
+          ? requestPlay(code, uid, positionSec)
+          : action === "pause"
+            ? requestPause(code, uid, positionSec)
+            : requestSeek(code, uid, positionSec); // seek + restart
+      void write.catch(() => undefined);
+    };
+
+    // Idle placeholder — normal content, NOT .vb-video-error and never an
+    // overlay above the player shell (both cannot be visible together).
+    const videoEmptyState = document.createElement("div");
+    videoEmptyState.className = "vb-video-empty";
+    const emptyIcon = document.createElement("span");
+    emptyIcon.className = "vb-video-empty__icon";
+    emptyIcon.setAttribute("aria-hidden", "true");
+    emptyIcon.textContent = "🎬";
+    const emptyTitle = document.createElement("h2");
+    emptyTitle.textContent = "Waiting for the host to choose a video";
+    const emptyHint = document.createElement("p");
+    emptyHint.textContent = isHost
+      ? "Add videos from the Video Queue panel on the right."
+      : "The queue is prepared by the host. Hang tight!";
+    videoEmptyState.append(emptyIcon, emptyTitle, emptyHint);
+    view.videoColumn.append(videoEmptyState);
+
+    function ensurePlayer(firstVideoId: string): void {
+      if (player) return;
+      player = createYoutubePlayer(firstVideoId, {
         isHost,
-        onHostAction: (action, positionSec) => {
-          const write =
-            action === "play"
-              ? requestPlay(code, uid, positionSec)
-              : action === "pause"
-                ? requestPause(code, uid, positionSec)
-                : requestSeek(code, uid, positionSec); // seek + restart
-          void write.catch(() => undefined);
-        },
+        onHostAction: hostActionHandler,
       });
+      view.videoColumn.append(player.root);
+      videoEmptyState.hidden = true;
     }
+
+    /* Buzzer Stage — created before doBuzz so it can drive pending feedback. */
+    const stage = createBuzzerStage();
+    view.stageColumn.append(stage.root);
 
     /* Buzzer */
     let buzzLock = false;
@@ -237,18 +287,22 @@ async function enterRoom(
       if (buzzLock || !buzzPanel.isEnabled()) return;
       buzzLock = true;
       buzzPanel.markPending(true);
+      // Neutral pending light on my own podium — never a winner indication.
+      stage.setPending(uid, true);
 
       const videoTime = player?.getPosition() ?? 0;
       attemptBuzz(code, uid, displayName, videoTime)
         .then(() => {
           buzzLock = false;
           buzzPanel.markPending(false);
+          stage.setPending(uid, false);
           // Won/taken UI renders from the authoritative watchRound snapshot.
         })
         .catch(() => {
           // Transaction failed (offline/rule): release the lock, round unchanged.
           buzzLock = false;
           buzzPanel.markPending(false);
+          stage.setPending(uid, false);
         });
     }
 
@@ -259,18 +313,10 @@ async function enterRoom(
       hasPendingAttempt: false,
     });
 
-    if (player) view.videoColumn.append(player.root);
-    else {
-      const note = document.createElement("p");
-      note.className = "vb-hint";
-      note.textContent = "This room has no video.";
-      view.videoColumn.append(note);
-    }
-    view.buzzerColumn.append(buzzPanel.root);
+    // Seed from the creation-time id (legacy rooms keep their behavior).
+    if (videoId) ensurePlayer(videoId);
 
-    /* Buzzer Stage — visual enhancement derived from participants + round. */
-    const stage = createBuzzerStage();
-    view.stageColumn.append(stage.root);
+    view.buzzerColumn.append(buzzPanel.root);
 
     /* Game sound controls (must not block BUZZ button) */
     const soundPanel = createSoundPanel({
@@ -413,6 +459,19 @@ async function enterRoom(
     let lastAutoPausedRound = -1;
     let latestRound: RoomData["game"]["round"] | null = null;
 
+    let buzzGateActive = false;
+    function refreshBuzzGate(): void {
+      if (!localConnected) return; // "Connection lost" override keeps priority
+      if (!activeVideoId) {
+        buzzPanel.setStatus("Waiting for the host to choose a video");
+        buzzGateActive = true;
+      } else if (buzzGateActive) {
+        buzzPanel.setStatus(null); // release our own gate only
+        buzzGateActive = false;
+      }
+      videoEmptyState.hidden = !!activeVideoId;
+    }
+
     const resolveWinnerColor = (): void => {
       const winnerId = latestRound?.buzz?.playerId;
       buzzPanel.setWinnerColor(
@@ -452,10 +511,11 @@ async function enterRoom(
       view.setConnectionState(online);
       diagnostics.setConnection(online);
 
-      // Hard-block the buzzer while offline; restore computed status online.
+      // Hard-block the buzzer while offline; recompute our gates when online.
       buzzPanel.setStatus(online ? null : "Connection lost");
 
       if (online) {
+        refreshBuzzGate();
         // RTDB listeners re-sync by themselves; snap the player back cleanly.
         // The seq guard would skip an unchanged snapshot, hence forceResync.
         player?.forceResync();
@@ -476,7 +536,66 @@ async function enterRoom(
       });
     });
 
+    /* ---------------- Video queue (canonical, host-managed) ---------------- */
+
+    // Player read-only summary lives right under the Buzzer Stage.
+    const playerQueue = createPlayerQueue();
+    view.stageColumn.append(playerQueue.root);
+
+    let latestQueueSnapshot: VideoQueueSnapshot | null = null;
+
+    function launchById(itemId: string, autoplay: boolean): void {
+      if (!isHost) return; // UX guard; rules are the real authority
+      void launchQueueItem(code, uid, itemId, { autoplay }).catch((err) => {
+        toasts.show(describeDbError(err), "error");
+        if (import.meta.env.DEV) console.warn("[vq] launch failed", err);
+      });
+    }
+
+    const hostPanel_: VideoQueuePanelHandles | null = isHost
+      ? (() => {
+          const panel = createVideoQueuePanel({
+            addItem: async (rawUrl, o) => {
+              await addToQueue(code, uid, rawUrl, o);
+            },
+            moveItem: (id, dir) => moveQueueItem(code, id, dir),
+            removeItem: (id) => removeQueueItem(code, id),
+            clearQueue: () => clearNonActiveQueue(code),
+            launch: launchById,
+            playNext: () => {
+              const view = resolveQueueView(latestQueueSnapshot, null);
+              const target = pickNextLaunchTarget(view.items, view.active?.id ?? null);
+              if (target) launchById(target.id, false);
+              else toasts.show("End of queue — add another video.", "error");
+            },
+          });
+          view.sidebar.append(panel.root);
+          return panel;
+        })()
+      : null;
+
+    const unQueue = watchVideoQueue(code, (rawSnap) => {
+      // Read-time legacy adapter: before the host adds anything, an older room
+      // has NO /videoQueue node; its /video.videoId renders as a synthetic
+      // read-only active item. Nothing is ever written back.
+      const exists = rawSnap != null && typeof rawSnap === "object" && Object.keys(rawSnap).length > 0;
+      const legacyActiveVideoId = exists ? "" : videoId;
+      const snap = (exists ? rawSnap : {}) as VideoQueueSnapshot;
+      latestQueueSnapshot = snap;
+      const v = resolveQueueView(snap, legacyActiveVideoId);
+      playerQueue.setView(v);
+      hostPanel_?.setSnapshot(snap, legacyActiveVideoId);
+    });
+
     let isFirstRoundCallback = true;
+    // Session staleness guard: fingerprint of the playback session at the time
+    // each round number was observed OPEN. Any buzzed event whose stored
+    // fingerprint differs from the CURRENT one belongs to a previous video and
+    // is rendered as historical only (no reflex pause, no sound, no flash).
+    const roundSessionByNumber = new Map<number, string>();
+    let activeVideoId = videoId;
+    let activeSessionFingerprint = `${videoId}:0`;
+
     const unRound = watchRound(code, (round) => {
       latestRound = round;
       buzzPanel.setRound(round);
@@ -486,49 +605,84 @@ async function enterRoom(
       resolveWinnerColor();
       stage.setPlayers(getStagePlayers(participants, round, uid));
 
+      if (round.state === "open" && !round.buzz) {
+        roundSessionByNumber.set(round.number, activeSessionFingerprint);
+      }
+
       // Procedural winner sound — local reaction only, never decides winner.
       // Reuse confirmed buzz event model: round buzzed + winner + roundNumber + buzzedAt
+      const initialCallback = isFirstRoundCallback;
       if (round.state === "buzzed" && round.buzz) {
         const buzzKey = `${code}:${round.number}:${round.buzz.playerId}:${round.buzz.buzzedAt}`;
-        if (isFirstRoundCallback) {
-          // Historical snapshot on refresh/late-join: mark processed without playing
-          markEventProcessed(buzzKey);
-          if (import.meta.env.DEV) console.debug("[audio] initial buzzed state, suppress playback", buzzKey);
-        } else {
+        const storedFp = roundSessionByNumber.get(round.number);
+        const isStaleSession = storedFp !== null && storedFp !== activeSessionFingerprint;
+        // Late join / refresh / stale-session → static final state only.
+        const renderStatic = initialCallback || isStaleSession;
+
+        stage.notifyBuzzEvent({
+          buzzEventKey: buzzKey,
+          winnerId: round.buzz.playerId,
+          isInitialSnapshot: renderStatic,
+        });
+        if (!renderStatic) {
           const winner = participants.find((p) => p.uid === round.buzz!.playerId);
           const rawProfile = winner?.soundProfileId;
           const profileId = normalizeProfileId(rawProfile, round.buzz.playerId);
           if (import.meta.env.DEV) console.debug("[audio] confirmed winner", { buzzKey, profileId, winnerId: round.buzz.playerId });
           void playWinnerSound(profileId as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId, buzzKey).then(() => {
-            // If blocked/muted, show unobtrusive hint for future buzzes
-            if (getAudioStatus() !== "ready") {
-              soundPanel.setBlockedHintVisible(true);
-            }
+            if (getAudioStatus() !== "ready") soundPanel.setBlockedHintVisible(true);
           });
+        } else {
+          markEventProcessed(buzzKey);
+          if (import.meta.env.DEV) console.debug("[audio] static winner render (initial/stale), suppress playback", buzzKey, { isStaleSession });
         }
+      } else {
+        // Round resolved / rejected / cancelled / reopened → clean neutral state.
+        stage.clearBuzzVisual();
       }
       isFirstRoundCallback = false;
 
       // Buzz reflex: EVERY client pauses its local player immediately…
-      if (round.state === "buzzed" && round.number !== lastAutoPausedRound) {
-        lastAutoPausedRound = round.number;
+      // Only for live, session-current rounds; never for a stale or
+      // first-snapshot (historical) event.
+      const currentReflexNumber = round.state === "buzzed" ? round.number : -1;
+      if (
+        currentReflexNumber >= 0 &&
+        !initialCallback &&
+        roundSessionByNumber.get(currentReflexNumber) === activeSessionFingerprint &&
+        currentReflexNumber !== lastAutoPausedRound
+      ) {
+        lastAutoPausedRound = currentReflexNumber;
         player?.pauseLocal();
-        // …and the host additionally writes the coherent global pause.
         if (isHost) {
           void requestPause(code, uid, player?.getPosition() ?? 0).catch(
             () => undefined,
           );
         }
       }
+      if (roundSessionByNumber.size > 64) {
+        for (const k of roundSessionByNumber.keys()) {
+          if (k < round.number) roundSessionByNumber.delete(k);
+        }
+      }
     });
 
     const unVideo = watchVideoState(code, (state) => {
+      const vid = typeof state?.videoId === "string" ? state.videoId : "";
+      activeVideoId = vid;
+      activeSessionFingerprint = `${vid}:${state?.videoSessionId ?? 0}`;
+
+      // Lazy player creation on the first real video; switch-to-video itself
+      // is handled inside the player via the same remote snapshot (seq-guarded).
+      if (vid) ensurePlayer(vid);
+
+      refreshBuzzGate();
       player?.applyRemote(state, serverOffsetMs);
       lastSyncedPos = state.currentTimeSec;
       hostPanel?.setVideoPlaying(state.playing);
 
       // Optional periodic re-anchor: only the host beats, only while playing.
-      const wantsHeartbeat = isHost && state.playing && player !== null;
+      const wantsHeartbeat = isHost && state.playing && player !== null && !!vid;
       if (wantsHeartbeat && stopHeartbeat === null) {
         stopHeartbeat = startPlaybackHeartbeat(code, uid, () => player?.getPosition() ?? 0);
       } else if (!wantsHeartbeat && stopHeartbeat !== null) {
@@ -543,12 +697,15 @@ async function enterRoom(
       unPresenceDebug();
       unConnection();
       unOffset();
+      unQueue();
       unRound();
       unVideo();
       stopHeartbeat?.();
       player?.dispose();
       buzzPanel.dispose();
       stage.dispose();
+      playerQueue.root.remove();
+      hostPanel_?.dispose();
       soundPanel.dispose();
       stopActiveSounds();
       clearProcessedEventKeys();

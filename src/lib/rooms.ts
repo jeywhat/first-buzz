@@ -18,12 +18,13 @@ export function generateRoomCode(): RoomCode {
 }
 
 /**
- * Creates a room owned by `hostUid` with `videoId` preselected.
+ * Creates a room owned by `hostUid`.
+ * `videoId` may be EMPTY — the host picks a video later from the queue.
  * Retries with a fresh code on the (unlikely) collision of an existing code.
- * Throws if videoId is not a valid 11-character YouTube id.
+ * Throws only when a NON-EMPTY videoId is not a valid YouTube id.
  */
-export async function createRoom(hostUid: UserId, videoId: string): Promise<RoomCode> {
-  if (!VIDEO_ID_PATTERN.test(videoId)) {
+export async function createRoom(hostUid: UserId, videoId = ""): Promise<RoomCode> {
+  if (videoId && !VIDEO_ID_PATTERN.test(videoId)) {
     throw new Error("Invalid YouTube video id.");
   }
   const db = getFirebaseDatabase();
@@ -36,9 +37,19 @@ export async function createRoom(hostUid: UserId, videoId: string): Promise<Room
     const now = serverNow();
     // Single atomic room write: the security rules allow room creation only at
     // the room root and only when meta.hostUid equals the creator's uid.
+    // videoId === '' encodes the idle "no video yet" state (rules-validated).
     await set(ref(db, roomPath(code)), {
       meta: { hostUid, createdAt: now, lastActivityAt: now, allowHostToBuzz: true },
-      video: { videoId, playing: false, currentTimeSec: 0, changedAt: now, changedBy: hostUid, seq: 0 },
+      video: {
+        videoId,
+        playing: false,
+        currentTimeSec: 0,
+        changedAt: now,
+        changedBy: hostUid,
+        seq: 0,
+        activeQueueItemId: null,
+        videoSessionId: 0,
+      },
       game: {
         status: "lobby",
         round: { number: 0, state: "idle", result: null, pointsAwarded: 0 },

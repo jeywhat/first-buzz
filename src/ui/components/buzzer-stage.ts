@@ -20,6 +20,20 @@ interface MoreCardHandle {
 export interface BuzzerStageHandles {
   root: HTMLElement;
   setPlayers(vm: StageViewModel): void;
+  /**
+   * Called when the authoritative RTDB round update shows a confirmed buzz.
+   * One-shot animation per stable key; late joiners render static state only.
+   */
+  notifyBuzzEvent(ev: {
+    buzzEventKey: string;
+    winnerId: UserId;
+    /** True when this is the first round snapshot (refresh / late join). */
+    isInitialSnapshot: boolean;
+  }): void;
+  /** Gentle illumination of the local player's podium while their transaction is in flight. */
+  setPending(uid: UserId, pending: boolean): void;
+  /** Clears transient locked/status visuals when the round leaves "buzzed". */
+  clearBuzzVisual(): void;
   dispose(): void;
 }
 
@@ -40,6 +54,13 @@ export function createBuzzerStage(): BuzzerStageHandles {
   track.className = "vb-stage__track";
   root.append(track);
 
+  // Compact status strip — populated from authoritative round state only.
+  const statusStrip = document.createElement("p");
+  statusStrip.className = "vb-stage__status";
+  statusStrip.setAttribute("role", "status");
+  statusStrip.setAttribute("aria-live", "polite");
+  root.append(statusStrip);
+
   const handles = new Map<UserId, PodiumPlayerHandle>();
   let moreCard: MoreCardHandle | null = null;
 
@@ -47,10 +68,10 @@ export function createBuzzerStage(): BuzzerStageHandles {
     const el = document.createElement("div");
     el.className = "vb-podium";
 
-    const crown = document.createElement("span");
-    crown.className = "vb-podium__crown";
-    crown.setAttribute("aria-hidden", "true");
-    crown.textContent = "★";
+    const firstBadge = document.createElement("span");
+    firstBadge.className = "vb-podium__first-badge";
+    firstBadge.setAttribute("aria-hidden", "true");
+    firstBadge.textContent = "⚡ FIRST!";
 
     const avatarWrap = document.createElement("div");
     avatarWrap.className = "vb-podium__avatar";
@@ -72,7 +93,7 @@ export function createBuzzerStage(): BuzzerStageHandles {
     youTag.textContent = "You";
 
     meta.append(dot, score);
-    el.append(crown, avatarWrap, name, meta, youTag);
+    el.append(firstBadge, avatarWrap, name, meta, youTag);
 
     let builtSeed = "";
 
@@ -124,6 +145,11 @@ export function createBuzzerStage(): BuzzerStageHandles {
   }
 
   function setPlayers(vm: StageViewModel): void {
+    // Derived locked/status state — appears identically for every client.
+    root.classList.toggle("vb-stage--has-buzz", vm.roundLocked);
+    statusStrip.textContent = vm.statusText ?? "";
+    statusStrip.classList.toggle("vb-stage__status--active", !!vm.statusText);
+
     const desiredUids = new Set(vm.visible.map((p) => p.uid));
 
     // Drop podiums no longer visible.
@@ -205,10 +231,77 @@ export function createBuzzerStage(): BuzzerStageHandles {
     window.addEventListener("resize", onResizeCheck, { passive: true });
   }
 
+  /* ---------------- Buzz animation event system ---------------- */
+  // Purely local, keyed by the authoritative Firebase event. No timers for
+  // game state — one short visual timer removes the transient flash class.
+  const processedBuzzKeys = new Set<string>();
+  let flashTimer: number | null = null;
+
+  function devStageLog(...args: unknown[]): void {
+    if (import.meta.env.DEV) console.debug("[stage]", ...args);
+  }
+
+  function clearFlashTimer(): void {
+    if (flashTimer !== null) {
+      window.clearTimeout(flashTimer);
+      flashTimer = null;
+      devStageLog("visual timer cleaned up");
+    }
+  }
+
+  function playWinnerFlash(winnerId: UserId): void {
+    const handle = handles.get(winnerId);
+    if (!handle) return;
+    const el = handle.root;
+    el.classList.remove("vb-podium--buzz-flash");
+    void el.offsetWidth; // restart CSS animation
+    el.classList.add("vb-podium--buzz-flash");
+    clearFlashTimer();
+    // Visual-only cleanup after the animation window (<900ms total sequence).
+    flashTimer = window.setTimeout(() => {
+      el.classList.remove("vb-podium--buzz-flash");
+      flashTimer = null;
+      devStageLog("buzz flash animation finished, class removed");
+    }, 680);
+    devStageLog("winner animation played", winnerId);
+  }
+
   return {
     root,
     setPlayers,
+    notifyBuzzEvent(ev) {
+      devStageLog(`observed buzz event ${ev.buzzEventKey}`);
+      if (processedBuzzKeys.has(ev.buzzEventKey)) {
+        devStageLog("skipped: already processed", ev.buzzEventKey);
+        return;
+      }
+      processedBuzzKeys.add(ev.buzzEventKey);
+      if (ev.isInitialSnapshot) {
+        // Late join / refresh: static winner state already rendered via
+        // setPlayers (--winner classes). Never replay entrance animations.
+        devStageLog("late-join static state rendered (no animation)", ev.buzzEventKey);
+        return;
+      }
+      playWinnerFlash(ev.winnerId);
+    },
+    setPending(uid, pending) {
+      const handle = handles.get(uid);
+      if (!handle) return;
+      handle.root.classList.toggle("vb-podium--pending", pending);
+      devStageLog("pending podium light", uid, pending ? "on" : "off");
+    },
+    clearBuzzVisual() {
+      root.classList.remove("vb-stage--has-buzz");
+      statusStrip.textContent = "";
+      statusStrip.classList.remove("vb-stage__status--active");
+      for (const h of handles.values()) {
+        h.root.classList.remove("vb-podium--buzz-flash");
+      }
+      clearFlashTimer();
+    },
     dispose() {
+      clearFlashTimer();
+      processedBuzzKeys.clear();
       if (import.meta.env.DEV) {
         devPanel?.remove();
         window.removeEventListener("resize", onResizeCheck);

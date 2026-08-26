@@ -285,6 +285,22 @@ export function createYoutubePlayer(
   let layoutObserver: ResizeObserver | null = null;
   let devWidthWarning: HTMLDivElement | null = null;
 
+  /** The video id the live iframe currently represents ('' = idle). */
+  let currentVideoId = videoId;
+
+  /* DEV-only command diagnostics (never in production bundles' runtime). */
+  function devLogApplied(command: string, state: VideoState): void {
+    if (!import.meta.env.DEV) return;
+    console.debug(
+      `[vb-player] applied ${command}`,
+      `videoId=${state.videoId} seq=${state.seq} session=${state.videoSessionId ?? "-"} item=${state.activeQueueItemId ?? "-"}`,
+    );
+  }
+  function devLogIgnored(reason: string, last: number, incoming: number): void {
+    if (!import.meta.env.DEV) return;
+    console.debug(`[vb-player] ignored stale command (${reason}): lastSeq=${last} incoming=${incoming}`);
+  }
+
   /**
    * Re-tells the YouTube player how big the iframe actually is. YT sizes its
    * internal video surface from the iframe box, and that box changes when the
@@ -439,8 +455,40 @@ export function createYoutubePlayer(
   function applyLatest(): void {
     const state = pendingState;
     if (!state || !player || !ready) return;
-    if (isStaleSequence(state.seq, appliedSeq)) return;
+    if (isStaleSequence(state.seq, appliedSeq)) {
+      devLogIgnored("stale seq", appliedSeq, state.seq);
+      return;
+    }
     appliedSeq = state.seq;
+
+    // ---- Queue launch: switch the SAME iframe to the new video ----
+    // Runs only after the fresh-seq guard so late snapshots of the previous
+    // video can never flip us back.
+    if (state.videoId && state.videoId !== currentVideoId) {
+      currentVideoId = state.videoId;
+      didInitialSync = false; // re-anchor once on the new video
+      clearVideoError();
+      removeLoading();
+      try {
+        // CUE first: deterministic paused frame at 0. playVideo() right after
+        // only when the authoritative snapshot says playing (Launch and play).
+        player.cueVideoById(state.videoId, 0);
+        if (state.playing) player.playVideo();
+        devLogApplied("cueVideoById", state);
+      } catch (err) {
+        // Fallback: full load (plays) — rare API failure path only.
+        console.warn("[vb-player] cue failed, loadVideoById fallback", err);
+        try {
+          player.loadVideoById(state.videoId, 0);
+          if (!state.playing) player.pauseVideo();
+        } catch (err2) {
+          console.error("[vb-player] video switch failed", err2);
+          currentVideoId = ""; // force a future retry on the next snapshot
+        }
+      }
+      syncControlsFromPlayer();
+      return; // fresh anchor happens on subsequent state/tick via didInitialSync
+    }
 
     const target = computeExpectedPositionSec(state, Date.now() + serverOffsetMs);
     const current = safeCurrentTime();

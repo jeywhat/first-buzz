@@ -31,6 +31,8 @@ export function requestPlay(
     changedAt: serverNow(),
     changedBy: uid,
     seq: (cur?.seq ?? 0) + 1,
+    activeQueueItemId: cur?.activeQueueItemId ?? null,
+    videoSessionId: cur?.videoSessionId ?? 0,
   }));
 }
 
@@ -47,6 +49,8 @@ export function requestPause(
     changedAt: serverNow(),
     changedBy: uid,
     seq: (cur?.seq ?? 0) + 1,
+    activeQueueItemId: cur?.activeQueueItemId ?? null,
+    videoSessionId: cur?.videoSessionId ?? 0,
   }));
 }
 
@@ -63,6 +67,8 @@ export function requestSeek(
     changedAt: serverNow(),
     changedBy: uid,
     seq: (cur?.seq ?? 0) + 1,
+    activeQueueItemId: cur?.activeQueueItemId ?? null,
+    videoSessionId: cur?.videoSessionId ?? 0,
   }));
 }
 
@@ -82,6 +88,8 @@ export function requestResync(
     changedAt: serverNow(),
     changedBy: uid,
     seq: (cur?.seq ?? 0) + 1,
+    activeQueueItemId: cur?.activeQueueItemId ?? null,
+    videoSessionId: cur?.videoSessionId ?? 0,
   }));
 }
 

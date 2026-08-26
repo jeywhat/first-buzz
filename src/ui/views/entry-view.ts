@@ -58,11 +58,11 @@ export function renderEntryView(opts: {
   ytInput.className = "vb-input";
   ytInput.type = "text";
   ytInput.spellcheck = false;
-  ytInput.placeholder = "https://www.youtube.com/watch?v=…";
+  ytInput.placeholder = "https://www.youtube.com/watch?v=… (optional)";
 
   const hostNameInput = makeNameInput("vb-host-name", opts.savedName);
 
-  const ytField = makeField("YouTube URL", ytInput);
+  const ytField = makeField("YouTube URL — optional, pick later in the room", ytInput);
   const hostNameField = makeField("Your name", hostNameInput);
 
   const createBtn = document.createElement("button");
@@ -79,14 +79,17 @@ export function renderEntryView(opts: {
     }
     hostNameField.error.textContent = "";
 
-    if (!extractVideoId(ytInput.value)) {
-      ytField.error.textContent = "Enter a valid YouTube URL.";
+    // URL is now OPTIONAL: empty creates a room with no active video; a
+    // non-empty value must still be a valid YouTube link.
+    const rawUrl = ytInput.value.trim();
+    if (rawUrl && !extractVideoId(rawUrl)) {
+      ytField.error.textContent = "Enter a valid YouTube URL (or leave it empty).";
       ytInput.focus();
       return;
     }
     ytField.error.textContent = "";
 
-    opts.callbacks.onCreateRoom(ytInput.value.trim(), nameCheck.name);
+    opts.callbacks.onCreateRoom(rawUrl, nameCheck.name);
   });
 
   ytInput.addEventListener("keydown", (e) => {

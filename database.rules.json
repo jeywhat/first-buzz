@@ -28,7 +28,7 @@
           ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid",
           ".validate": "newData.hasChildren(['videoId', 'playing', 'currentTimeSec', 'changedAt', 'changedBy', 'seq'])",
           "videoId": {
-            ".validate": "newData.isString() && newData.val().length >= 6 && newData.val().length <= 20"
+            ".validate": "newData.isString() && (newData.val() === '' || newData.val().matches(/^[A-Za-z0-9_-]{6,20}$/))"
           },
           "playing": {
             ".validate": "newData.isBoolean()"
@@ -44,6 +44,14 @@
           },
           "seq": {
             ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "activeQueueItemId": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64",
+            ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid"
+          },
+          "videoSessionId": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000",
+            ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid"
           }
         },
         "game": {
@@ -89,6 +97,39 @@
                 ".validate": "newData.isNumber()"
               }
             }
+          }
+        },
+        "videoQueue": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid",
+          "items": {
+            "$itemId": {
+              ".validate": "newData.hasChildren(['id', 'videoId', 'addedAt', 'addedBy', 'position']) && newData.child('id').val() === $itemId",
+              "id": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+              },
+              "videoId": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{6,20}$/)"
+              },
+              "title": {
+                ".validate": "newData.isString() && newData.val().length <= 120 || newData.val() === null"
+              },
+              "addedAt": {
+                ".validate": "newData.isNumber()"
+              },
+              "addedBy": {
+                ".validate": "newData.isString()"
+              },
+              "position": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000 && newData.val() % 1 === 0"
+              }
+            }
+          },
+          "activeItemId": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64 || newData.val() === null"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
           }
         },
         "players": {

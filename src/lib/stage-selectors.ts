@@ -30,6 +30,10 @@ export interface StageViewModel {
   /** How many additional players are hidden behind the "+N" card. */
   overflowCount: number;
   total: number;
+  /** True only while RTDB round is authoritatively "buzzed" with a winner. */
+  roundLocked: boolean;
+  /** Compact stage status text, e.g. "Alice buzzed first!" (null when none). */
+  statusText: string | null;
 }
 
 export const MAX_PROMINENT_PODIUMS = 8;
@@ -72,8 +76,15 @@ export function getStagePlayers(
   enriched.sort(compareStage);
 
   const total = enriched.length;
+  // "Locked" only while the round is authoritatively buzzed (not yet resolved).
+  const roundLocked = round?.state === "buzzed" && !!round.buzz;
+  const winnerName = roundLocked
+    ? players.find((p) => p.uid === winnerId)?.name ?? null
+    : null;
+  const statusText = winnerName ? `${winnerName} buzzed first!` : null;
+
   if (total <= MAX_PROMINENT_PODIUMS) {
-    return { visible: enriched, overflowCount: 0, total };
+    return { visible: enriched, overflowCount: 0, total, roundLocked, statusText };
   }
 
   // First 7 by priority + an eighth "+N" summary card.
@@ -82,6 +93,8 @@ export function getStagePlayers(
     visible,
     overflowCount: total - (MAX_PROMINENT_PODIUMS - 1),
     total,
+    roundLocked,
+    statusText,
   };
 }
 

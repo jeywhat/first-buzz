@@ -15,6 +15,16 @@ export const playerScorePath = (code: RoomCode, uid: UserId): string =>
 export const playerSoundProfilePath = (code: RoomCode, uid: UserId): string =>
   `${playersPath(code)}/${uid}/soundProfileId`;
 
+/** Canonical host-owned video queue at /rooms/{id}/videoQueue. */
+export const queuePath = (code: RoomCode): string => `${roomPath(code)}/videoQueue`;
+export const queueItemsPath = (code: RoomCode): string => `${queuePath(code)}/items`;
+export const queueItemPath = (code: RoomCode, itemId: string): string =>
+  `${queueItemsPath(code)}/${itemId}`;
+export const queueActiveItemPath = (code: RoomCode): string =>
+  `${queuePath(code)}/activeItemId`;
+export const queueRevisionPath = (code: RoomCode): string =>
+  `${queuePath(code)}/revision`;
+
 export const presenceRoomPath = (code: RoomCode): string => `presence/${code}`;
 export const presenceUserPath = (code: RoomCode, uid: UserId): string =>
   `${presenceRoomPath(code)}/${uid}`;
