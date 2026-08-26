@@ -111,6 +111,10 @@
             "score": {
               ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid",
               ".validate": "newData.isNumber() && newData.val() >= -10000 && newData.val() <= 10000 && newData.val() % 1 === 0"
+            },
+            "soundProfileId": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.isString() && (newData.val() === 'classic-buzzer' || newData.val() === 'arcade-zap' || newData.val() === 'game-show-ding' || newData.val() === 'retro-blip' || newData.val() === 'synth-horn' || newData.val() === 'laser-pulse' || newData.val() === 'double-chime' || newData.val() === 'electric-pop')"
             }
           }
         }

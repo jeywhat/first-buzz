@@ -20,6 +20,8 @@ export interface ParticipantView {
   isHost: boolean;
   /** Join order timestamp (server clock); absent for presence-only ghosts. */
   joinedAt?: number;
+  /** Procedural buzzer sound allowlisted profile id (optional, fallback deterministic). */
+  soundProfileId?: string;
 }
 
 /**

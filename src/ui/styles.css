@@ -1122,3 +1122,331 @@
   opacity: 0.5;
   padding: 10px 12px;
 }
+
+/* ============================================================
+   Buzzer Stage — visual enhancement (no game-state changes)
+   ============================================================ */
+
+.vb-stage-slot {
+  min-width: 0;
+}
+
+.vb-stage {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 12px 10px;
+  margin-bottom: 16px;
+  border-radius: 14px;
+  border: 1px solid #2a2f3d;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(225, 29, 72, 0.10), transparent 60%),
+    #14171f;
+  overflow: hidden;
+}
+
+.vb-stage__track {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.vb-podium {
+  --podium-color: #3a3f4d;
+  position: relative;
+  flex: 0 0 auto;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 5px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--podium-color) 16%, #181b23);
+  border: 1px solid color-mix(in srgb, var(--podium-color) 45%, transparent);
+}
+
+.vb-podium__avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0e1016;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.vb-avatar {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.vb-avatar__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.vb-avatar__initials {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.vb-podium__name {
+  max-width: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-podium__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+
+.vb-podium__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: #64748b;
+}
+
+.vb-podium__dot--online {
+  background: #22c55e;
+  box-shadow: 0 0 5px rgba(34, 197, 94, 0.7);
+}
+
+.vb-podium__dot--connecting,
+.vb-podium__dot--reconnecting {
+  background: #fbbf24;
+}
+
+.vb-podium__dot--offline {
+  background: #475569;
+}
+
+.vb-podium__score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* "You" tag — text, not color alone. */
+.vb-podium__you {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0e1016;
+  background: #7dd3fc;
+  border-radius: 999px;
+  padding: 1px 6px;
+  z-index: 2;
+}
+
+/* Winner crown — visible glyph + aria-label, not color alone. */
+.vb-podium__crown {
+  position: absolute;
+  top: -6px;
+  right: 2px;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  text-shadow: 0 0 6px rgba(251, 191, 36, 0.8);
+  z-index: 2;
+  display: none;
+}
+
+.vb-podium--winner .vb-podium__crown {
+  display: block;
+}
+
+.vb-podium--winner {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 1px #fbbf24, 0 0 14px rgba(251, 191, 36, 0.35);
+  animation: vb-podium-win 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes vb-podium-win {
+  from {
+    box-shadow: 0 0 0 1px #fbbf24, 0 0 8px rgba(251, 191, 36, 0.25);
+  }
+  to {
+    box-shadow: 0 0 0 1px #fbbf24, 0 0 18px rgba(251, 191, 36, 0.5);
+  }
+}
+
+.vb-podium--offline {
+  opacity: 0.5;
+}
+
+.vb-podium--host .vb-podium__name {
+  color: #fbbf24;
+}
+
+/* "+N" overflow card */
+.vb-podium--more {
+  background: #181b23;
+  border-style: dashed;
+  border-color: #3a4152;
+  justify-content: center;
+}
+
+.vb-podium__more-count {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
+/* Mobile / tablet: horizontal scroll row with snap points. */
+@media (max-width: 1099px) {
+  .vb-stage__track {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    padding-bottom: 4px;
+  }
+
+  .vb-podium {
+    width: 76px;
+    scroll-snap-align: start;
+  }
+}
+
+/* Dev-only stage inspector */
+.vb-dev-stage {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 70;
+  max-width: 320px;
+  padding: 8px 12px;
+  background: #1e293b;
+  color: #e2e8f0;
+  border-top: 1px solid #334155;
+  border-right: 1px solid #334155;
+  border-top-right-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: pre;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vb-podium--winner {
+    animation: none;
+    box-shadow: 0 0 0 1px #fbbf24, 0 0 12px rgba(251, 191, 36, 0.4);
+  }
+}
+
+/* Game sound panel — compact controls near buzzer, never covers it */
+.vb-sound-panel {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  background: #181b23;
+  border: 1px solid #2a2f3d;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-sound-enable {
+  width: 100%;
+}
+
+.vb-sound-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #fbbf24;
+  opacity: 0.95;
+}
+
+.vb-sound-mute-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.vb-sound-mute-check {
+  width: 18px;
+  height: 18px;
+  accent-color: #e11d48;
+  cursor: pointer;
+  margin: 0;
+}
+
+.vb-sound-vol-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vb-sound-vol-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.vb-sound-vol {
+  width: 100%;
+  accent-color: #e11d48;
+}
+
+.vb-sound-profile-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.vb-sound-profile-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.vb-sound-select {
+  width: 100%;
+}
+
+.vb-sound-live {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

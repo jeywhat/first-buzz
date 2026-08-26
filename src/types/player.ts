@@ -23,6 +23,8 @@ export interface PlayerRecord {
   joinedAt: number;
   /** Host-controlled. */
   score: number;
+  /** Procedural buzzer sound — durable player preference (allowlisted). */
+  soundProfileId?: string;
 }
 
 /** Palette players pick from; deterministic per-uid assignment avoids collisions. */

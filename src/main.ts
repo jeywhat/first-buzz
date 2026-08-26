@@ -9,6 +9,7 @@ import {
 import { describeDbError } from "./lib/errors";
 import { getFirebaseDatabase } from "./lib/firebase";
 import {
+  ensureSoundProfileId,
   joinRoom,
   pickColor,
   watchRoomParticipants,
@@ -42,8 +43,20 @@ import { extractVideoId } from "./lib/youtube";
 import {
   createBuzzPanel,
 } from "./ui/components/buzz-panel";
+import { createBuzzerStage } from "./ui/components/buzzer-stage";
 import { createDiagnostics } from "./ui/components/diagnostics";
+import { createSoundPanel } from "./ui/components/sound-panel";
 import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
+import { getStagePlayers } from "./lib/stage-selectors";
+import {
+  clearProcessedEventKeys,
+  getAudioStatus,
+  markEventProcessed,
+  normalizeProfileId,
+  playWinnerSound,
+  stopActiveSounds,
+  unlockAudioFromUserGesture,
+} from "./services/proceduralBuzzerAudioService";
 import {
   createYoutubePlayer,
   type YoutubePlayerHandles,
@@ -124,6 +137,7 @@ async function handleCreate(youtubeUrl: string, name: string): Promise<void> {
   try {
     const code = await createRoom(uid, videoId);
     await joinRoom(code, uid, { name, color: pickColor(uid) });
+    void ensureSoundProfileId(code, uid).catch(() => {});
     saveDisplayName(name);
     navigate(`/room/${code}`);
     await enterRoom(code, uid, name, videoId);
@@ -152,6 +166,7 @@ async function handleJoin(code: string, name: string): Promise<void> {
       return;
     }
     await joinRoom(code, uid, { name, color: pickColor(uid) });
+    void ensureSoundProfileId(code, uid).catch(() => {});
     saveDisplayName(name);
     navigate(`/room/${code}`);
     // Full room read becomes permitted only after joining.
@@ -215,6 +230,9 @@ async function enterRoom(
     const buzzPanel = createBuzzPanel({ onBuzz: () => doBuzz() });
 
     function doBuzz(): void {
+      // Unlock audio synchronously within the user gesture before the RTDB transaction.
+      // Do not await; user activation can expire if we await long async tasks.
+      void unlockAudioFromUserGesture().catch(() => {});
       // Double-click / repeat protection lives here AND in the transaction.
       if (buzzLock || !buzzPanel.isEnabled()) return;
       buzzLock = true;
@@ -249,6 +267,29 @@ async function enterRoom(
       view.videoColumn.append(note);
     }
     view.buzzerColumn.append(buzzPanel.root);
+
+    /* Buzzer Stage — visual enhancement derived from participants + round. */
+    const stage = createBuzzerStage();
+    view.stageColumn.append(stage.root);
+
+    /* Game sound controls (must not block BUZZ button) */
+    const soundPanel = createSoundPanel({
+      code,
+      uid,
+      initialProfileId: null,
+    });
+    // Place sound controls below the stage but still in sidebar; never covers buzzer.
+    view.sidebar.append(soundPanel.root);
+    // Ensure durable sound profile exists (deterministic fallback)
+    void ensureSoundProfileId(code, uid).then((pid) => {
+      // keep UI in sync with persisted value
+      try {
+        // dynamic import to avoid cycle, but we already have panel
+        soundPanel.setProfile(pid as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId);
+      } catch {
+        // ignore
+      }
+    });
 
     /* Host moderation */
     let moderating = false;
@@ -398,6 +439,12 @@ async function enterRoom(
           list.length,
         );
         resolveWinnerColor();
+        stage.setPlayers(getStagePlayers(list, latestRound, uid));
+        // keep sound panel's selector in sync if profile changed remotely for self
+        const self = list.find((p) => p.uid === uid);
+        if (self?.soundProfileId) {
+          soundPanel.setProfile(self.soundProfileId as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId);
+        }
       },
     );
     const unConnection = watchConnectionState((online) => {
@@ -429,6 +476,7 @@ async function enterRoom(
       });
     });
 
+    let isFirstRoundCallback = true;
     const unRound = watchRound(code, (round) => {
       latestRound = round;
       buzzPanel.setRound(round);
@@ -436,6 +484,30 @@ async function enterRoom(
       diagnostics.setRound(round);
       view.setRoundStatus(round.state);
       resolveWinnerColor();
+      stage.setPlayers(getStagePlayers(participants, round, uid));
+
+      // Procedural winner sound — local reaction only, never decides winner.
+      // Reuse confirmed buzz event model: round buzzed + winner + roundNumber + buzzedAt
+      if (round.state === "buzzed" && round.buzz) {
+        const buzzKey = `${code}:${round.number}:${round.buzz.playerId}:${round.buzz.buzzedAt}`;
+        if (isFirstRoundCallback) {
+          // Historical snapshot on refresh/late-join: mark processed without playing
+          markEventProcessed(buzzKey);
+          if (import.meta.env.DEV) console.debug("[audio] initial buzzed state, suppress playback", buzzKey);
+        } else {
+          const winner = participants.find((p) => p.uid === round.buzz!.playerId);
+          const rawProfile = winner?.soundProfileId;
+          const profileId = normalizeProfileId(rawProfile, round.buzz.playerId);
+          if (import.meta.env.DEV) console.debug("[audio] confirmed winner", { buzzKey, profileId, winnerId: round.buzz.playerId });
+          void playWinnerSound(profileId as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId, buzzKey).then(() => {
+            // If blocked/muted, show unobtrusive hint for future buzzes
+            if (getAudioStatus() !== "ready") {
+              soundPanel.setBlockedHintVisible(true);
+            }
+          });
+        }
+      }
+      isFirstRoundCallback = false;
 
       // Buzz reflex: EVERY client pauses its local player immediately…
       if (round.state === "buzzed" && round.number !== lastAutoPausedRound) {
@@ -476,6 +548,10 @@ async function enterRoom(
       stopHeartbeat?.();
       player?.dispose();
       buzzPanel.dispose();
+      stage.dispose();
+      soundPanel.dispose();
+      stopActiveSounds();
+      clearProcessedEventKeys();
       diagnostics.dispose();
       void presenceService.stopPresence();
     };
@@ -522,6 +598,7 @@ async function openRoomByCode(code: RoomCode): Promise<void> {
 
   try {
     await joinRoom(code, uid, { name: savedName, color: pickColor(uid) });
+    void ensureSoundProfileId(code, uid).catch(() => {});
   } catch (err) {
     bounceHome(describeDbError(err), code);
     return;

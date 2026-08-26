@@ -15,6 +15,8 @@ export interface RoomViewHandles {
   videoColumn: HTMLElement;
   /** Buzzer slot at the top of the sidebar. */
   buzzerColumn: HTMLElement;
+  /** Slot for the Buzzer Stage, directly below the buzzer in the sidebar. */
+  stageColumn: HTMLElement;
   /** Sidebar (host controls, scoreboard, diagnostics). */
   sidebar: HTMLElement;
   setParticipants(list: ParticipantView[]): void;

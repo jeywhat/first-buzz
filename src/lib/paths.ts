@@ -12,6 +12,8 @@ export const playerProfilePath = (code: RoomCode, uid: UserId): string =>
   `${playersPath(code)}/${uid}/profile`;
 export const playerScorePath = (code: RoomCode, uid: UserId): string =>
   `${playersPath(code)}/${uid}/score`;
+export const playerSoundProfilePath = (code: RoomCode, uid: UserId): string =>
+  `${playersPath(code)}/${uid}/soundProfileId`;
 
 export const presenceRoomPath = (code: RoomCode): string => `presence/${code}`;
 export const presenceUserPath = (code: RoomCode, uid: UserId): string =>

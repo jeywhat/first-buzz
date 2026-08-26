@@ -1,4 +1,5 @@
 import {
+  get,
   onValue,
   ref,
   runTransaction,
@@ -15,7 +16,12 @@ import type {
 } from "../types";
 import { PLAYER_COLORS } from "../types";
 import { getFirebaseDatabase } from "./firebase";
-import { playerProfilePath, playersPath, roomPath } from "./paths";
+import {
+  playerProfilePath,
+  playersPath,
+  playerSoundProfilePath,
+  roomPath,
+} from "./paths";
 import {
   subscribeToRoomPresence,
 } from "../services/presenceService";
@@ -39,6 +45,64 @@ export async function joinRoom(
     [playerProfilePath(code, uid)]: profile,
     [`rooms/${code}/players/${uid}/joinedAt`]: serverNow(),
   });
+}
+
+/** Allowlist mirrored from proceduralBuzzerAudioService (kept in sync manually). */
+const SOUND_ALLOWLIST = new Set([
+  "classic-buzzer",
+  "arcade-zap",
+  "game-show-ding",
+  "retro-blip",
+  "synth-horn",
+  "laser-pulse",
+  "double-chime",
+  "electric-pop",
+]);
+
+function deterministicSoundForUid(uid: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < uid.length; i++) {
+    h ^= uid.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  const arr = [...SOUND_ALLOWLIST];
+  return arr[(h >>> 0) % arr.length] as string;
+}
+
+/** Ensures the player has a soundProfileId; persists a deterministic default if missing. */
+export async function ensureSoundProfileId(
+  code: RoomCode,
+  uid: UserId,
+): Promise<string> {
+  const db = getFirebaseDatabase();
+  const snap = await get(ref(db, playerSoundProfilePath(code, uid)));
+  const cur = snap.val() as string | null;
+  if (cur && SOUND_ALLOWLIST.has(cur)) return cur;
+  const chosen = deterministicSoundForUid(uid);
+  try {
+    await update(ref(db), {
+      [playerSoundProfilePath(code, uid)]: chosen,
+    });
+  } catch {
+    // ignore write failure (rules or offline); caller will fallback
+  }
+  return chosen;
+}
+
+export async function setSoundProfileId(
+  code: RoomCode,
+  uid: UserId,
+  profileId: string,
+): Promise<void> {
+  if (!SOUND_ALLOWLIST.has(profileId)) throw new Error(`Invalid sound profile: ${profileId}`);
+  const db = getFirebaseDatabase();
+  await update(ref(db), {
+    [playerSoundProfilePath(code, uid)]: profileId,
+  });
+}
+
+export function isValidSoundProfileIdClient(v: unknown): boolean {
+  return typeof v === "string" && SOUND_ALLOWLIST.has(v);
 }
 
 /** Deterministic color per uid so two players never need to negotiate. */
@@ -129,6 +193,7 @@ export function watchRoomParticipants(
         presenceState: derivePresenceState(uid, pres, opts),
         isHost: hostUid !== null && uid === hostUid,
         joinedAt: player?.joinedAt,
+        soundProfileId: (player as unknown as { soundProfileId?: string })?.soundProfileId,
       };
     });
     onChange(list);

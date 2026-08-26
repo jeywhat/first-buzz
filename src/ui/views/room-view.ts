@@ -119,13 +119,17 @@ export function renderRoomView(opts: {
   const buzzerSlot = document.createElement("div");
   buzzerSlot.className = "vb-buzzer-slot";
 
+  // Buzzer Stage slot — directly below the buzzer, above the player list.
+  const stageSlot = document.createElement("div");
+  stageSlot.className = "vb-stage-slot";
+
   const participants = renderParticipantList();
 
   const hint = document.createElement("p");
   hint.className = "vb-hint";
   hint.textContent = "Share the link — answers are given by voice on Discord.";
 
-  sidebar.append(buzzerSlot, participants.root, hint);
+  sidebar.append(buzzerSlot, stageSlot, participants.root, hint);
 
   mainArea.append(primary, sidebar);
   shell.append(header, connBanner, mainArea);
@@ -135,6 +139,7 @@ export function renderRoomView(opts: {
     root,
     videoColumn: videoRegion,
     buzzerColumn: buzzerSlot,
+    stageColumn: stageSlot,
     sidebar,
     setParticipants: participants.setParticipants,
     setConnectionState(online) {
