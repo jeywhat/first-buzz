@@ -504,6 +504,7 @@ button {
 .vb-room-main {
   width: min(100%, 1780px);
   min-width: 0;
+  margin-top: 20px;
   margin-inline: auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -988,30 +989,23 @@ button {
   background: #ecfdf5;
 }
 
-/* Orbit stage */
+/* Orbit stage - bounded square, container for cqw-based sizing.
+   Z-INDEX MODEL (documented):
+     1  .vb-arena-rings        decorative, pointer-events none
+     5  .vb-arena-player-ring  stations (composite boxes)
+     6  .vb-arena-top-status / .vb-arena-bottom-feedback  reserved bands
+     10 .vb-arena-center       the ONE canonical buzzer
+     12 .vb-arena-overflow     "+N" chip
+   Bands are reserved by measured heights - stations never enter them
+   (enforced by calculateArenaGeometry + dev assertions). */
 
 .vb-arena-stage {
-  /* Square stage = true circle; radius var keeps podiums inside the ring. */
-  --vb-arena-radius: 34%;
   position: relative;
   width: 100%;
   max-width: 420px;
   margin-inline: auto;
   aspect-ratio: 1 / 1;
-  min-height: 300px;
-}
-
-@media (max-height: 860px) and (min-width: 1100px) {
-  .vb-arena-stage {
-    min-height: 260px;
-    max-width: 360px;
-  }
-}
-
-@media (max-width: 767px) {
-  .vb-arena-stage {
-    --vb-arena-radius: 38%;
-  }
+  container-type: inline-size;
 }
 
 .vb-arena-rings {
@@ -1019,23 +1013,103 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 1;
   pointer-events: none;
 }
 
-.vb-arena-center {
+/* Reserved TOP status zone - round pill, VIDEO PAUSED, winner summary. */
+.vb-arena-top-status {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  width: min(50%, 180px);
+  gap: 5px;
+  padding: 2px 4px;
+  min-height: 34px;
+  pointer-events: none;
 }
 
-.vb-arena-players {
+.vb-buzz-round-pill {
+  font-family: var(--vb-font-display);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-ink);
+  background: var(--vb-muted);
+  border: 1.5px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.vb-arena-top-status .vb-paused-pill {
+  padding: 2px 10px;
+  font-size: 0.58rem;
+}
+
+/* Winner summary - compact, wraps, never full-arena opaque. */
+.vb-arena-top-status .vb-winner-card {
+  width: auto;
+  max-width: 240px;
+  padding: 3px 8px;
+  gap: 6px;
+}
+
+.vb-arena-top-status .vb-winner-card__name {
+  white-space: normal;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.vb-arena-top-status .vb-winner-card__meta {
+  white-space: nowrap;
+}
+
+/* Reserved BOTTOM feedback zone - "You buzzed first!" + keyboard hint. */
+.vb-arena-bottom-feedback {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 2px 4px;
+  min-height: 44px;
+  pointer-events: none;
+}
+
+.vb-arena-bottom-feedback .vb-buzz-status {
+  min-height: 1em;
+  font-size: 0.7rem;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+}
+
+.vb-arena-bottom-feedback .vb-buzz-kbd-hint {
+  font-size: 0.52rem;
+  padding: 1px 7px;
+}
+
+/* Player ring - stations only; placed by JS from measured geometry. */
+.vb-arena-player-ring {
   position: absolute;
   inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.vb-arena-player-ring .vb-arena-player {
+  pointer-events: auto;
 }
 
 .vb-arena-overflow {
@@ -1044,7 +1118,7 @@ button {
   bottom: 2px;
   transform: translateX(-50%);
   font-family: var(--vb-font-display);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   font-weight: 900;
   color: #5a6172;
   background: var(--vb-muted);
@@ -1054,12 +1128,19 @@ button {
   z-index: 12;
 }
 
-/* Podium player on the ring */
+/* Center zone - ONLY the canonical buzzer; positioned by the geometry. */
+.vb-arena-center {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+}
+
+/* Podium station - composite box (avatar + name + score + controls). */
 
 .vb-arena-player {
   position: absolute;
-  left: var(--player-x, 50%);
-  top: var(--player-y, 50%);
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
@@ -1067,14 +1148,45 @@ button {
   gap: 3px;
   z-index: 5;
   width: max-content;
-  max-width: 30%;
+  max-width: 42cqw;
+}
+
+.vb-arena-player[hidden] {
+  display: none !important;
+}
+
+/* Compact size class — smaller stations so narrow stages keep podiums. */
+.vb-arena-stage[data-size="compact"] .vb-arena-avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.vb-arena-stage[data-size="compact"] .vb-arena-plate {
+  padding: 1px 3px;
+}
+
+.vb-arena-stage[data-size="compact"] .vb-arena-plate-name-text {
+  font-size: 0.54rem;
+}
+
+.vb-arena-stage[data-size="compact"] .vb-arena-plate-score-value {
+  font-size: 0.56rem;
+}
+
+.vb-arena-stage[data-size="compact"] .vb-arena-score-row {
+  gap: 2px;
+}
+
+.vb-arena-stage[data-size="compact"] .vb-arena-player-you {
+  font-size: 0.46rem;
+  padding: 0 5px;
 }
 
 .vb-arena-avatar {
   --player-color: #64748b;
   position: relative;
-  width: clamp(38px, 4.2vw, 52px);
-  height: clamp(38px, 4.2vw, 52px);
+  width: clamp(34px, 11cqw, 46px);
+  height: clamp(34px, 11cqw, 46px);
 }
 
 .vb-arena-avatar .vb-avatar {
@@ -1099,8 +1211,8 @@ button {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   border: 2px solid var(--vb-ink);
   background: #94a3b8;
@@ -1121,35 +1233,35 @@ button {
 
 .vb-arena-player-you {
   position: absolute;
-  bottom: -7px;
+  bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--vb-font-display);
-  font-size: 0.56rem;
+  font-size: 0.52rem;
   font-weight: 900;
   letter-spacing: 0.06em;
   color: #fff;
   background: var(--vb-secondary-dark);
   border: 1.5px solid var(--vb-ink);
   border-radius: var(--vb-control-radius);
-  padding: 1px 7px;
+  padding: 1px 6px;
   z-index: 2;
   white-space: nowrap;
 }
 
 .vb-arena-player-win {
   position: absolute;
-  top: -12px;
+  top: -2px;
   left: 50%;
-  transform: translateX(-50%) rotate(-2deg);
+  transform: translate(-50%, 0) rotate(-2deg);
   font-family: var(--vb-font-display);
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   font-weight: 900;
   color: var(--vb-ink);
   background: var(--vb-tertiary);
   border: 2px solid var(--vb-ink);
   border-radius: var(--vb-control-radius);
-  padding: 1px 7px;
+  padding: 0 6px;
   z-index: 3;
   white-space: nowrap;
 }
@@ -1157,12 +1269,12 @@ button {
 .vb-arena-plate {
   background: var(--vb-card);
   border: 2px solid var(--vb-ink);
-  border-radius: 12px;
-  padding: 3px 6px;
+  border-radius: 10px;
+  padding: 2px 5px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   box-shadow: 0 2px 0 var(--vb-ink);
   max-width: 100%;
 }
@@ -1177,7 +1289,7 @@ button {
 
 .vb-arena-plate-name-text {
   font-family: var(--vb-font-display);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
   color: var(--vb-ink);
   overflow: hidden;
@@ -1186,38 +1298,53 @@ button {
 }
 
 .vb-arena-plate-crown {
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   flex: none;
 }
 
 .vb-arena-plate-score {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
-.vb-arena-plate-score-value {
-  font-family: var(--vb-font-display);
-  font-size: 0.68rem;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  color: var(--vb-ink);
+/* Score controls row — part of the station bbox; suppresses global buzz
+   shortcuts via data-disable-buzz-shortcuts (checked by keyboard-buzz). */
+.vb-arena-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
 }
 
+.vb-arena-score-row[aria-busy="true"] {
+  opacity: 0.75;
+}
+
+/* Score buttons: visible 34/40px, interactive target 44px via ::after
+   (inset -5px). Glyphs − / + / ± carry the meaning; color only reinforces. */
 .vb-arena-score-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 8px;
-  border: 1.5px solid var(--vb-ink);
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 2px solid var(--vb-ink);
   font-family: var(--vb-font-display);
   font-weight: 900;
-  font-size: 0.72rem;
+  font-size: 1rem;
   display: grid;
   place-items: center;
   cursor: pointer;
   padding: 0;
   line-height: 1;
   transition: transform 0.06s ease;
+}
+
+.vb-arena-score-btn::after {
+  /* Invisible hit-area expansion → 44×44 interactive target. */
+  content: "";
+  position: absolute;
+  inset: -5px;
 }
 
 .vb-arena-score-btn:active {
@@ -1240,6 +1367,74 @@ button {
 
 .vb-arena-score-btn--plus:hover {
   background: #99f6e4;
+}
+
+.vb-arena-score-btn--pending {
+  animation: vb-score-pending 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes vb-score-pending {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Anchored trigger + popover (narrow stages): one ± button per station
+   opening a bounded −1 / +1 panel. Transient host-initiated overlay —
+   sits above stations by design (z 15), never over the video. */
+.vb-arena-score-trigger {
+  width: 40px;
+  height: 40px;
+  font-size: 1.1rem;
+  background: var(--vb-tertiary);
+  color: var(--vb-ink);
+}
+
+.vb-arena-score-trigger:hover {
+  background: var(--vb-tertiary-dark);
+  color: var(--vb-ink);
+}
+
+.vb-arena-score-trigger[aria-expanded="true"] {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--vb-ink);
+}
+
+.vb-arena-score-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15; /* above stations (5) and zones (6) — transient, host-initiated */
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--vb-card);
+  border: 2px solid var(--vb-ink);
+  border-radius: 12px;
+  box-shadow: 0 3px 0 var(--vb-ink);
+}
+
+.vb-arena-score-popover .vb-arena-score-btn {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+
+.vb-arena-score-popover .vb-arena-score-btn::after {
+  display: none; /* popover buttons are already 44px targets */
+}
+
+/* Edge compaction - stations near left/right borders narrow their label.
+   Buttons keep their 34px visible size (44px hit via ::after) so targets
+   stay compliant; only the text compresses. */
+.vb-arena-station--edge .vb-arena-plate {
+  padding: 2px 3px;
+}
+
+.vb-arena-station--edge .vb-arena-plate-name-text {
+  max-width: 52px;
 }
 
 /* State tints */
@@ -1275,7 +1470,7 @@ button {
   min-height: 0;
 }
 
-.vb-arena-fallback {
+.vb-arena-footer {
   margin: 0;
   font-size: 0.72rem;
   text-align: center;
@@ -1286,21 +1481,20 @@ button {
    Buzz panel — THE central arcade buzzer
    ============================================================ */
 
-.vb-buzz {
+.vb-buzz-core {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  width: 100%;
+  gap: 6px;
 }
 
 .vb-buzz-btn {
   font-family: var(--vb-font-display);
   font-weight: 900;
   letter-spacing: 0.08em;
-  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  font-size: clamp(1.3rem, 8cqw, 1.9rem);
   color: #fff;
-  width: min(140px, 42vw);
+  width: clamp(84px, 30cqw, 124px);
   aspect-ratio: 1;
   border-radius: 50%;
   border: 4px solid var(--vb-ink);
@@ -1366,17 +1560,17 @@ button {
 .vb-buzz-kbd-hint {
   margin: 0;
   font-family: var(--vb-font-display);
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   color: #5a6172;
   background: var(--vb-muted);
   border: 1.5px solid var(--vb-ink);
   border-radius: var(--vb-control-radius);
-  padding: 2px 10px;
+  padding: 1px 8px;
 }
 
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 767px), (max-height: 760px) {
   .vb-buzz-kbd-hint {
     display: none;
   }

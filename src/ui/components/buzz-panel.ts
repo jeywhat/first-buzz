@@ -12,7 +12,12 @@ const REASON_MESSAGES: Record<BuzzBlockReason, string> = {
 };
 
 export interface BuzzPanelHandles {
+  /** Core control: canonical BUZZ button + keyboard hint (center zone). */
   root: HTMLElement;
+  /** Winner card + VIDEO PAUSED pill (arena status zone, above the ring). */
+  statusRoot: HTMLElement;
+  /** Status line (arena feedback zone, below the ring). */
+  feedbackRoot: HTMLElement;
   /** Drives availability + winner card from the authoritative round node. */
   setRound(round: RoundData): void;
   setContext(ctx: BuzzContext): void;
@@ -33,9 +38,6 @@ export interface BuzzPanelHandles {
 
 /** Large buzzer with click/touch input; Space handling lives in main.ts. */
 export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
-  const root = document.createElement("section");
-  root.className = "vb-buzz";
-
   const winnerCard = document.createElement("div");
   winnerCard.className = "vb-winner-card";
   winnerCard.hidden = true;
@@ -80,12 +82,28 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   statusLine.className = "vb-buzz-status";
   statusLine.setAttribute("aria-live", "polite");
 
-  // Keyboard shortcut hint — hidden on touch-only devices via CSS.
+  // Split roots: the arena mounts each part in its dedicated zone.
+  // Center = button ONLY (no text, no winner info, no hint).
+  const root = document.createElement("section");
+  root.className = "vb-buzz-core";
+  const statusRoot = document.createElement("div");
+  statusRoot.className = "vb-buzz-status-stack";
+  const feedbackRoot = document.createElement("div");
+  feedbackRoot.className = "vb-buzz-feedback";
+
+  // Round state pill — top status zone.
+  const roundPill = document.createElement("span");
+  roundPill.className = "vb-buzz-round-pill";
+  roundPill.hidden = true;
+
+  // Keyboard hint — feedback zone, below the status line.
   const kbdHint = document.createElement("p");
   kbdHint.className = "vb-buzz-kbd-hint";
-  kbdHint.textContent = "Press Space or Enter to buzz";
+  kbdHint.textContent = "SPACE / ENTER";
 
-  root.append(winnerCard, pausedPill, btn, statusLine, kbdHint);
+  root.append(btn);
+  statusRoot.append(roundPill, pausedPill, winnerCard);
+  feedbackRoot.append(statusLine, kbdHint);
 
   /* ---------- state ---------- */
 
@@ -189,10 +207,14 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
 
   return {
     root,
+    statusRoot,
+    feedbackRoot,
     setRound(value) {
       round = value;
       if (round.state === "open" && !round.buzz) pinnedWin = false;
       if (round.buzz?.playerId === ctx.playerId) pinnedWin = false;
+      roundPill.textContent = `Round #${round.number} · ${round.state}`;
+      roundPill.hidden = false;
       render();
     },
     setContext(value) {

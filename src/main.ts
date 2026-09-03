@@ -311,7 +311,7 @@ async function enterRoom(
     /* Buzzer */
     let buzzLock = false;
     const buzzPanel = createBuzzPanel({ onBuzz: () => doBuzz() });
-    arena.mountBuzzPanel(buzzPanel.root);
+    arena.mountBuzzPanel(buzzPanel.root, buzzPanel.statusRoot, buzzPanel.feedbackRoot);
 
     function doBuzz(): void {
       // Unlock audio synchronously within the user gesture before the RTDB transaction.
