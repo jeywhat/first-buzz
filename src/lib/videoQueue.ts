@@ -222,13 +222,15 @@ export async function launchQueueItem(
       activeQueueItemId: itemId,
       videoSessionId: (curVideo.videoSessionId ?? 0) + 1,
     },
-    // Safe round reset: fresh number, non-open state → buzzing impossible
-    // until the host explicitly opens the first new round.
+    // Safe round reset that ALSO opens the new round automatically: the
+    // moment every client switches to the video (same seq/session bump),
+    // the round is already "open" so buzzers are armed without any extra
+    // host click. Host still opens SUBSEQUENT rounds via "New round"
+    // after each verdict, exactly like before.
     [roomRoundPath(code)]: {
       number: roundNumber + 1,
-      state: "idle",
-      result: null,
-      pointsAwarded: 0,
+      state: "open",
+      openedAt: now,
       buzz: null,
     },
     [`${roomGamePath(code)}/status`]: "active",
@@ -238,4 +240,10 @@ export async function launchQueueItem(
   };
 
   await update(ref(db), updates);
+  if (import.meta.env.DEV) {
+    console.debug(
+      `[vq] launched item=${itemId} video=${target.videoId} autoplay=${!!opts.autoplay}`,
+      `round=${roundNumber + 1} (auto-opened)`,
+    );
+  }
 }

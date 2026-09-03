@@ -3,7 +3,7 @@ import type { RoundData } from "../types/round";
 import type { UserId } from "../types/common";
 
 /**
- * View model for a single podium on the Buzzer Stage.
+ * View model for a single podium in the circular Player Arena.
  * All fields are derived from existing room/presence/round data — no new
  * Firebase writes. `avatarSeed` is the stable userId so the avatar is
  * deterministic across refreshes and clients.
@@ -24,34 +24,30 @@ export interface StagePlayer {
   sortTier: number;
 }
 
-export interface StageViewModel {
-  /** Up to 8 podiums to render prominently. */
+export interface ArenaViewModel {
+  /** Up to MAX players rendered on the orbit ring, in stable order. */
   visible: StagePlayer[];
-  /** How many additional players are hidden behind the "+N" card. */
+  /** How many additional players are summarized as "+N". */
   overflowCount: number;
   total: number;
+  onlineCount: number;
   /** True only while RTDB round is authoritatively "buzzed" with a winner. */
   roundLocked: boolean;
-  /** Compact stage status text, e.g. "Alice buzzed first!" (null when none). */
-  statusText: string | null;
 }
 
-export const MAX_PROMINENT_PODIUMS = 8;
+export const MAX_ARENA_PLAYERS = 8;
 
 /**
- * Pure selector: turns the merged participant list + current round into the
- * ordered set of stage podiums.
- *
- * Sort priority (stable): 1) current buzz winner, 2) current user,
- * 3) online players, 4) higher score, 5) room join order. Offline players
- * always rank after online ones. At most 8 podiums are shown; when more exist,
- * the first 7 by priority are kept and an eighth "+N" card summarizes the rest.
+ * Stable arena ordering: 1) current buzz winner, 2) current user,
+ * 3) online players, 4) connecting/reconnecting, 5) offline, then join order
+ * and name. Score is intentionally NOT part of the sort — a score change must
+ * never reshuffle the arena (spec: stable positions during ordinary updates).
  */
-export function getStagePlayers(
+export function getArenaPlayers(
   players: ParticipantView[],
   round: RoundData | null,
   currentUserId: UserId,
-): StageViewModel {
+): ArenaViewModel {
   const winnerId = round?.buzz?.playerId ?? null;
   const roundHasBuzz = round?.state === "buzzed" || round?.state === "resolved";
 
@@ -73,28 +69,25 @@ export function getStagePlayers(
     };
   });
 
-  enriched.sort(compareStage);
+  enriched.sort(
+    (a, b) =>
+      a.sortTier - b.sortTier ||
+      (a.joinedAt ?? Number.MAX_SAFE_INTEGER) - (b.joinedAt ?? Number.MAX_SAFE_INTEGER) ||
+      a.name.localeCompare(b.name),
+  );
 
+  const onlineCount = players.filter((p) => p.presenceState === "online").length;
   const total = enriched.length;
-  // "Locked" only while the round is authoritatively buzzed (not yet resolved).
-  const roundLocked = round?.state === "buzzed" && !!round.buzz;
-  const winnerName = roundLocked
-    ? players.find((p) => p.uid === winnerId)?.name ?? null
-    : null;
-  const statusText = winnerName ? `${winnerName} buzzed first!` : null;
 
-  if (total <= MAX_PROMINENT_PODIUMS) {
-    return { visible: enriched, overflowCount: 0, total, roundLocked, statusText };
+  if (total <= MAX_ARENA_PLAYERS) {
+    return { visible: enriched, overflowCount: 0, total, onlineCount, roundLocked: roundHasBuzz && !!winnerId };
   }
-
-  // First 7 by priority + an eighth "+N" summary card.
-  const visible = enriched.slice(0, MAX_PROMINENT_PODIUMS - 1);
   return {
-    visible,
-    overflowCount: total - (MAX_PROMINENT_PODIUMS - 1),
+    visible: enriched.slice(0, MAX_ARENA_PLAYERS),
+    overflowCount: total - MAX_ARENA_PLAYERS,
     total,
-    roundLocked,
-    statusText,
+    onlineCount,
+    roundLocked: roundHasBuzz && !!winnerId,
   };
 }
 
@@ -108,15 +101,6 @@ function tierFor(
   if (p.presenceState === "online") return 2;
   if (p.presenceState === "connecting" || p.presenceState === "reconnecting") return 3;
   return 4; // offline
-}
-
-function compareStage(a: StagePlayer, b: StagePlayer): number {
-  return (
-    a.sortTier - b.sortTier ||
-    b.score - a.score ||
-    (a.joinedAt ?? Number.MAX_SAFE_INTEGER) - (b.joinedAt ?? Number.MAX_SAFE_INTEGER) ||
-    a.name.localeCompare(b.name)
-  );
 }
 
 /** Human-readable presence label (mirrors participant-list wording). */

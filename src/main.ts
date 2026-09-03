@@ -1,6 +1,6 @@
 import "./style.css";
 import "./ui/styles.css";
-import { get, ref } from "firebase/database";
+import { get, limitToLast, onValue, query, ref } from "firebase/database";
 import { initAuth } from "./lib/auth";
 import {
   watchConnectionState,
@@ -14,15 +14,15 @@ import {
   pickColor,
   watchRoomParticipants,
 } from "./lib/players";
-import { roomPath } from "./lib/paths";
+import { roomPath, scoreEventsPath } from "./lib/paths";
 import { loadSavedName, saveDisplayName } from "./lib/profile";
 import { attemptBuzz, openNextRound, watchRound } from "./lib/rounds";
+import { resetScores } from "./lib/moderation";
 import {
-  moderateCancel,
-  moderateCorrect,
-  moderateWrong,
-  resetScores,
-} from "./lib/moderation";
+  adjustPlayerScore,
+  formatScoreChange,
+  type ScoreEvent,
+} from "./lib/scoring";
 import {
   createRoom,
   fetchRoom,
@@ -56,7 +56,8 @@ import type { VideoQueueSnapshot } from "./types/queue";
 import {
   createBuzzPanel,
 } from "./ui/components/buzz-panel";
-import { createBuzzerStage } from "./ui/components/buzzer-stage";
+import { createPlayerArena } from "./ui/components/player-arena";
+import { createBuzzPopup } from "./ui/components/buzz-popup";
 import { createPlayerQueue } from "./ui/components/player-queue";
 import {
   createVideoQueuePanel,
@@ -65,13 +66,15 @@ import {
 import { createDiagnostics } from "./ui/components/diagnostics";
 import { createSoundPanel } from "./ui/components/sound-panel";
 import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
-import { getStagePlayers } from "./lib/stage-selectors";
+
 import {
   clearProcessedEventKeys,
+  getAudioPreferences,
   getAudioStatus,
   markEventProcessed,
   normalizeProfileId,
   playWinnerSound,
+  setMuted,
   stopActiveSounds,
   unlockAudioFromUserGesture,
 } from "./services/proceduralBuzzerAudioService";
@@ -84,6 +87,8 @@ import {
   type HostPanelHandles,
 } from "./ui/components/host-panel";
 import { createToastHost } from "./ui/components/toast";
+import { createManualScoring } from "./ui/components/manual-scoring";
+import { createScoreFeed } from "./ui/components/score-feed";
 import { renderEntryView } from "./ui/views/entry-view";
 import { renderRoomView } from "./ui/views/room-view";
 import type { ParticipantView, RoomCode, RoomData, UserId } from "./types";
@@ -218,6 +223,7 @@ async function enterRoom(
 
     const view = renderRoomView({
       code,
+      uid,
       isHost,
       onLeave: () => {
         // Clean leave: final offline write + onDisconnect cancel + teardown.
@@ -267,17 +273,45 @@ async function enterRoom(
         isHost,
         onHostAction: hostActionHandler,
       });
+      // The player section is position:absolute within the video shell, so
+      // DOM order is irrelevant. NEVER insertBefore the popup region here —
+      // it lives OUTSIDE the shell and would throw NotFoundError (code 8).
       view.videoColumn.append(player.root);
       videoEmptyState.hidden = true;
     }
 
-    /* Buzzer Stage — created before doBuzz so it can drive pending feedback. */
-    const stage = createBuzzerStage();
-    view.stageColumn.append(stage.root);
+    /* Player Arena — created with the buzz panel INSIDE it so there is
+       exactly one canonical BUZZ button per client. Data flows in later. */
+    const arena = createPlayerArena({
+      isHost,
+      onAdjust: async (targetUid, delta) => {
+        try {
+          const target = participants.find((p) => p.uid === targetUid);
+          await adjustPlayerScore(code, targetUid, delta, {
+            targetDisplayName: target?.name ?? String(targetUid),
+            changedBy: uid,
+            reason: null,
+            videoSessionId: latestVideoSessionId,
+            roundNumber: latestRound?.number ?? null,
+            viewerIsHost: isHost,
+          });
+          toasts.show(formatScoreChange(delta, target?.name ?? "player"));
+        } catch (err) {
+          toasts.show(describeDbError(err), "error");
+        }
+      },
+    });
+    view.arenaSlot.append(arena.root);
+
+    /* Buzz popup — normal-flow sibling BELOW the video shell. Actions are
+       injected later (same handlers as the host panel → no second path). */
+    const buzzPopup = createBuzzPopup();
+    view.buzzPopupColumn.append(buzzPopup.root);
 
     /* Buzzer */
     let buzzLock = false;
     const buzzPanel = createBuzzPanel({ onBuzz: () => doBuzz() });
+    arena.mountBuzzPanel(buzzPanel.root);
 
     function doBuzz(): void {
       // Unlock audio synchronously within the user gesture before the RTDB transaction.
@@ -287,22 +321,24 @@ async function enterRoom(
       if (buzzLock || !buzzPanel.isEnabled()) return;
       buzzLock = true;
       buzzPanel.markPending(true);
-      // Neutral pending light on my own podium — never a winner indication.
-      stage.setPending(uid, true);
+      // Neutral pending light on my own podium — never a winner indication.
+      // Neutral local "Buzz sent…" below the video (replaced by the
+      // authoritative winner popup once RTDB confirms).
+      buzzPopup.setPending(true);
 
       const videoTime = player?.getPosition() ?? 0;
       attemptBuzz(code, uid, displayName, videoTime)
         .then(() => {
           buzzLock = false;
-          buzzPanel.markPending(false);
-          stage.setPending(uid, false);
+          buzzPanel.markPending(false);
+          buzzPopup.setPending(false);
           // Won/taken UI renders from the authoritative watchRound snapshot.
         })
         .catch(() => {
           // Transaction failed (offline/rule): release the lock, round unchanged.
           buzzLock = false;
-          buzzPanel.markPending(false);
-          stage.setPending(uid, false);
+          buzzPanel.markPending(false);
+          buzzPopup.setPending(false);
         });
     }
 
@@ -315,8 +351,7 @@ async function enterRoom(
 
     // Seed from the creation-time id (legacy rooms keep their behavior).
     if (videoId) ensurePlayer(videoId);
-
-    view.buzzerColumn.append(buzzPanel.root);
+
 
     /* Game sound controls (must not block BUZZ button) */
     const soundPanel = createSoundPanel({
@@ -325,7 +360,8 @@ async function enterRoom(
       initialProfileId: null,
     });
     // Place sound controls below the stage but still in sidebar; never covers buzzer.
-    view.sidebar.append(soundPanel.root);
+    // Sound settings live inside the collapsed settings drawer.
+    view.settingsContent.append(soundPanel.root);
     // Ensure durable sound profile exists (deterministic fallback)
     void ensureSoundProfileId(code, uid).then((pid) => {
       // keep UI in sync with persisted value
@@ -336,6 +372,21 @@ async function enterRoom(
         // ignore
       }
     });
+
+    /* Top-bar sound toggle — canonical audio service, synced with the panel. */
+    const syncSoundToggle = (): void => {
+      const muted = getAudioPreferences().muted;
+      view.soundToggle.textContent = muted ? "🔇" : "🔊";
+      view.soundToggle.setAttribute("aria-pressed", String(!muted));
+      soundPanel.setMutedState(muted);
+    };
+    view.soundToggle.addEventListener("click", () => {
+      // Gesture: also unlocks audio so unmuting works on first click.
+      void unlockAudioFromUserGesture().catch(() => {});
+      setMuted(!getAudioPreferences().muted);
+      syncSoundToggle();
+    });
+    syncSoundToggle();
 
     /* Host moderation */
     let moderating = false;
@@ -355,20 +406,36 @@ async function enterRoom(
         });
     };
 
+    /* Shared post-buzz actions: ONE canonical set used by BOTH the host
+       panel and the buzz popup (no duplicate video/round command paths). */
+    const postBuzzActions = {
+      // Resume playback only — round stays "buzzed", winner stays visible,
+      // scores untouched.
+      onResume: () =>
+        runModeration(
+          () => requestPlay(code, uid, player?.getPosition() ?? 0),
+          "Video resumed",
+        ),
+      // Clear the winner + arm buzzers. No score change, no playback change.
+      onOpenNext: () =>
+        runModeration(() => openNextRound(code), "Next buzz opened — buzzers armed"),
+      // Coherent combo: (1) open next buzz, (2) resume playback.
+      // Exactly one video command; the prior winner key is already
+      // processed and its round node is replaced, so nothing replays.
+      onResumeAndNext: () =>
+        runModeration(
+          async () => {
+            await openNextRound(code);
+            await requestPlay(code, uid, player?.getPosition() ?? 0);
+          },
+          "Next buzz opened — video resumed",
+        ),
+    };
+    buzzPopup.setActions(postBuzzActions);
+
     if (isHost) {
       hostPanel = createHostPanel({
-        onCorrect: () =>
-          runModeration(
-            () => moderateCorrect(code, uid, player?.getPosition() ?? 0),
-            "Correct! +1 point — resuming",
-          ),
-        onWrong: () =>
-          runModeration(
-            () => moderateWrong(code, uid, player?.getPosition() ?? 0),
-            "Answer rejected — resuming",
-          ),
-        onCancel: () =>
-          runModeration(() => moderateCancel(code), "Buzz cancelled — round reopened"),
+        ...postBuzzActions,
         onNewRound: () => runModeration(() => openNextRound(code), "New round opened"),
         onResync: () =>
           runModeration(
@@ -403,8 +470,40 @@ async function enterRoom(
         },
       });
       hostPanel.setHostBuzzAllowed(allowHostToBuzz);
-      view.sidebar.append(hostPanel.root);
+      view.sidebar.insertBefore(hostPanel.root, view.sidebar.querySelector(".vb-settings-drawer"));
     }
+
+    /* ---------------- Manual scoring (host) + score feed (everyone) ------- */
+    // Tracks the CURRENT playback session so audit events stay contextual.
+    let latestVideoSessionId: number | null = null;
+
+    const scoreFeed = createScoreFeed();
+    view.sidebar.insertBefore(scoreFeed.root, view.sidebar.querySelector(".vb-settings-drawer"));
+
+    const scoring = isHost
+      ? createManualScoring({
+          onAdjust: async (target, delta, reason) => {
+            try {
+              const res = await adjustPlayerScore(code, target.uid, delta, {
+                targetDisplayName: target.name,
+                changedBy: uid,
+                reason,
+                videoSessionId: latestVideoSessionId,
+                roundNumber: latestRound?.number ?? null,
+                viewerIsHost: isHost,
+              });
+              // Toast only AFTER Firebase confirmed the durable score write.
+              toasts.show(formatScoreChange(delta, target.name));
+              if (res.eventWriteFailed) {
+                toasts.show("Score applied, but the activity log write failed.", "error");
+              }
+            } catch (err) {
+              toasts.show(describeDbError(err), "error");
+            }
+          },
+        })
+      : null;
+    if (scoring) view.sidebar.insertBefore(scoring.root, view.sidebar.querySelector(".vb-settings-drawer"));
 
     /* Diagnostics (collapsible, read-only) */
     let lastSyncedPos: number | null = null;
@@ -415,7 +514,8 @@ async function enterRoom(
     });
     diagnostics.setRole(isHost);
     diagnostics.setRoomCode(code);
-    view.sidebar.append(diagnostics.root);
+    // Diagnostics live inside the settings drawer — never in the default view.
+    view.settingsContent.append(diagnostics.root);
 
     app.replaceChildren(view.root);
 
@@ -498,7 +598,8 @@ async function enterRoom(
           list.length,
         );
         resolveWinnerColor();
-        stage.setPlayers(getStagePlayers(list, latestRound, uid));
+        arena.setRoomData(list, latestRound, uid);
+        scoring?.setParticipants(list);
         // keep sound panel's selector in sync if profile changed remotely for self
         const self = list.find((p) => p.uid === uid);
         if (self?.soundProfileId) {
@@ -536,17 +637,31 @@ async function enterRoom(
       });
     });
 
+    // Capped audit feed (most recent 50) — read-only for everyone.
+    const unScoreEvents = onValue(
+      query(ref(db, scoreEventsPath(code)), limitToLast(50)),
+      (snap) => {
+        const events: ScoreEvent[] = [];
+        snap.forEach((child) => {
+          const v = child.val();
+          if (v && typeof v === "object") events.push(v as ScoreEvent);
+        });
+        scoreFeed.setEvents(events.reverse()); // newest first
+      },
+    );
+
     /* ---------------- Video queue (canonical, host-managed) ---------------- */
 
-    // Player read-only summary lives right under the Buzzer Stage.
+    // Player read-only queue summary — scoreboard section of the sidebar.
     const playerQueue = createPlayerQueue();
-    view.stageColumn.append(playerQueue.root);
+    view.sidebar.insertBefore(playerQueue.root, view.sidebar.querySelector(".vb-settings-drawer"));
 
     let latestQueueSnapshot: VideoQueueSnapshot | null = null;
 
-    function launchById(itemId: string, autoplay: boolean): void {
-      if (!isHost) return; // UX guard; rules are the real authority
-      void launchQueueItem(code, uid, itemId, { autoplay }).catch((err) => {
+    function launchById(itemId: string, autoplay: boolean): Promise<void> {
+      if (!isHost) return Promise.resolve(); // UX guard; rules are the real authority
+      // Returned so the queue panel's busy guard spans the actual write.
+      return launchQueueItem(code, uid, itemId, { autoplay }).catch((err) => {
         toasts.show(describeDbError(err), "error");
         if (import.meta.env.DEV) console.warn("[vq] launch failed", err);
       });
@@ -603,7 +718,7 @@ async function enterRoom(
       diagnostics.setRound(round);
       view.setRoundStatus(round.state);
       resolveWinnerColor();
-      stage.setPlayers(getStagePlayers(participants, round, uid));
+      arena.setRoomData(participants, round, uid);
 
       if (round.state === "open" && !round.buzz) {
         roundSessionByNumber.set(round.number, activeSessionFingerprint);
@@ -619,10 +734,18 @@ async function enterRoom(
         // Late join / refresh / stale-session → static final state only.
         const renderStatic = initialCallback || isStaleSession;
 
-        stage.notifyBuzzEvent({
+        // Popup below the video — same authoritative source, same static rule
+        // for late joiners / refresh / stale sessions.
+        const winnerView = participants.find((p) => p.uid === round.buzz!.playerId);
+        buzzPopup.show({
           buzzEventKey: buzzKey,
           winnerId: round.buzz.playerId,
-          isInitialSnapshot: renderStatic,
+          winnerName: round.buzz.displayName,
+          winnerColor: winnerView?.color ?? "#64748b",
+          isWinnerYou: round.buzz.playerId === uid,
+          isHost,
+          videoPaused: true,
+          animate: !renderStatic,
         });
         if (!renderStatic) {
           const winner = participants.find((p) => p.uid === round.buzz!.playerId);
@@ -637,8 +760,12 @@ async function enterRoom(
           if (import.meta.env.DEV) console.debug("[audio] static winner render (initial/stale), suppress playback", buzzKey, { isStaleSession });
         }
       } else {
-        // Round resolved / rejected / cancelled / reopened → clean neutral state.
-        stage.clearBuzzVisual();
+        // Round resolved / rejected / cancelled / reopened → clean neutral state.
+        buzzPopup.hide(
+          round.state === "open"
+            ? "round opened (next buzz)"
+            : `round state ${round.state}`,
+        );
       }
       isFirstRoundCallback = false;
 
@@ -669,8 +796,13 @@ async function enterRoom(
 
     const unVideo = watchVideoState(code, (state) => {
       const vid = typeof state?.videoId === "string" ? state.videoId : "";
+      const prevSession = activeSessionFingerprint;
       activeVideoId = vid;
       activeSessionFingerprint = `${vid}:${state?.videoSessionId ?? 0}`;
+      latestVideoSessionId = vid ? state?.videoSessionId ?? null : null;
+      // Video session change invalidates any stale popup instantly (a launch
+      // also flips the round to "open" via its own watcher → double safety).
+      if (prevSession !== activeSessionFingerprint) buzzPopup.hide("video session changed");
 
       // Lazy player creation on the first real video; switch-to-video itself
       // is handled inside the player via the same remote snapshot (seq-guarded).
@@ -695,6 +827,7 @@ async function enterRoom(
       unKeyboard();
       unParticipants();
       unPresenceDebug();
+      unScoreEvents();
       unConnection();
       unOffset();
       unQueue();
@@ -703,7 +836,7 @@ async function enterRoom(
       stopHeartbeat?.();
       player?.dispose();
       buzzPanel.dispose();
-      stage.dispose();
+      arena.dispose();
       playerQueue.root.remove();
       hostPanel_?.dispose();
       soundPanel.dispose();

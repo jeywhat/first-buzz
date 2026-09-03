@@ -52,7 +52,7 @@ export async function createRoom(hostUid: UserId, videoId = ""): Promise<RoomCod
       },
       game: {
         status: "lobby",
-        round: { number: 0, state: "idle", result: null, pointsAwarded: 0 },
+        round: { number: 0, state: "idle" },
       },
     });
     return code;

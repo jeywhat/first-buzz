@@ -59,6 +59,17 @@ const EXCLUDED_ROLES = new Set([
   "alertdialog",
 ]);
 
+/** Structural focus target — satisfied by HTMLElement, mockable in tests. */
+export interface BuzzFocusTarget {
+  tagName: string;
+  isContentEditable: boolean;
+  hasAttribute(name: string): boolean;
+  getAttribute(name: string): string | null;
+  classList: { contains(cls: string): boolean };
+  closest(selector: string): BuzzFocusTarget | null;
+  parentElement: BuzzFocusTarget | null;
+}
+
 /**
  * Pure predicate: should a keyboard event trigger a buzz attempt?
  *
@@ -73,7 +84,7 @@ const EXCLUDED_ROLES = new Set([
 export function canTriggerBuzzFromKeyboard(
   event: KeyboardInput,
   state: KeyboardBuzzState,
-  activeElement: HTMLElement | null,
+  activeElement: BuzzFocusTarget | null,
 ): boolean {
   /* ---- event-level guards ---- */
   if (event.code !== "Space" && event.code !== "Enter" && event.code !== "NumpadEnter") {
@@ -96,11 +107,14 @@ export function canTriggerBuzzFromKeyboard(
   if (activeElement.hasAttribute("data-disable-buzz-shortcuts")) return false;
 
   // Walk up to check for modal/dialog container or interactive ARIA role.
-  let el: HTMLElement | null = activeElement;
+  let el: BuzzFocusTarget | null = activeElement;
   while (el) {
     const role = el.getAttribute("role");
     if (role && EXCLUDED_ROLES.has(role)) return false;
     if (el.classList.contains("vb-modal") || el.closest?.(".vb-modal")) return false;
+    // Convention: any ancestor marked data-disable-buzz-shortcuts (e.g. the
+    // manual-scoring form) suppresses global buzz shortcuts while focused.
+    if (el.hasAttribute("data-disable-buzz-shortcuts")) return false;
     el = el.parentElement;
   }
 

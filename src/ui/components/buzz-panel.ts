@@ -118,6 +118,7 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     if (!round) {
       enabled = false;
       btn.disabled = true;
+      btn.textContent = "BUZZ!";
       statusLine.textContent = externalStatus ?? "";
       winnerCard.hidden = true;
       return;
@@ -133,6 +134,20 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     enabled = effective.enabled && externalStatus === null;
 
     btn.disabled = !enabled;
+    // Arcade state label — information is always duplicated in statusLine.
+    const LABELS = {
+      pending: "BUZZING…",
+      taken: "BUZZED",
+      waiting: "WAITING…",
+      round_over: "CLOSED",
+      host_forbidden: "HOST ONLY",
+    } as const;
+    let label = "BUZZ!";
+    if (externalStatus !== null) label = "OFFLINE";
+    else if (enabled) label = "BUZZ!";
+    else if (effective.reason === "won") label = "YOU!";
+    else if (effective.reason) label = LABELS[effective.reason];
+    btn.textContent = label;
     btn.classList.toggle("vb-buzz-btn--enabled", enabled);
     btn.classList.toggle("vb-buzz-btn--won", effective.reason === "won");
 

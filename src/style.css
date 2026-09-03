@@ -1,6 +1,6 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  color-scheme: light dark;
+  font-family: "Quicksand", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color-scheme: light;
 }
 
 html,
@@ -14,8 +14,11 @@ body {
   margin: 0;
   min-height: 100dvh;
   display: block;
-  background: #12141a;
-  color: #e8eaf0;
+  background-color: #eef2f9;
+  background-image: radial-gradient(#d5dde9 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  color: #272935;
+  overscroll-behavior: none;
 }
 
 .home {

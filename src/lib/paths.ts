@@ -25,6 +25,10 @@ export const queueActiveItemPath = (code: RoomCode): string =>
 export const queueRevisionPath = (code: RoomCode): string =>
   `${queuePath(code)}/revision`;
 
+/** Host-written audit log for manual score adjustments (capped read of 50). */
+export const scoreEventsPath = (code: RoomCode): string =>
+  `${roomPath(code)}/scoreEvents`;
+
 export const presenceRoomPath = (code: RoomCode): string => `presence/${code}`;
 export const presenceUserPath = (code: RoomCode, uid: UserId): string =>
   `${presenceRoomPath(code)}/${uid}`;

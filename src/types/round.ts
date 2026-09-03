@@ -1,14 +1,16 @@
 export type GameStatus = "lobby" | "active" | "ended";
 
 /**
- * Round lifecycle:
+ * Round lifecycle (post buzz/score decoupling):
  *  idle      -> resting state; no round is running (buzzes impossible)
- *  open      -> players may buzz (transaction decides the single winner)
- *  buzzed    -> a buzz exists, host is listening to the verbal answer
- *  resolved  -> host judged the answer (result + pointsAwarded set)
- *  finished  -> room closed; nothing can buzz anymore
+ *  open      -> players may buzz (transaction decides the single winner);
+ *               host may pause/resume playback freely
+ *  buzzed    -> first winner saved by the RTDB transaction; video globally
+ *               paused; no score mutation; host sees resume/next-buzz controls
+ *  open      -> only the HOST may reopen ("Open next buzz"): winner cleared,
+ *               roundNumber incremented, scores untouched, playback unchanged
  *
- * Typical loop driven by host moderation: idle → open → buzzed → resolved → open …
+ * Typical loop: open → buzzed → (host resume ± open next) → open …
  * A room starts with round.state = 'idle' so nobody can buzz in the lobby.
  */
 export type RoundState = "idle" | "open" | "buzzed" | "resolved" | "finished";
@@ -47,7 +49,9 @@ export interface RoundData {
   openedAt?: number;
   /** Present only once someone has buzzed. */
   buzz?: Buzz | null;
+  /** @deprecated legacy buzz-scoring field — read-only; never written by new flows. */
   result?: RoundResult | null;
+  /** @deprecated legacy buzz-scoring field — read-only; never written by new flows. */
   pointsAwarded?: number;
 }
 

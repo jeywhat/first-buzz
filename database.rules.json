@@ -151,11 +151,51 @@
             },
             "score": {
               ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid",
-              ".validate": "newData.isNumber() && newData.val() >= -10000 && newData.val() <= 10000 && newData.val() % 1 === 0"
+              ".validate": "newData.isNumber() && newData.val() >= -99 && newData.val() <= 999 && newData.val() % 1 === 0"
             },
             "soundProfileId": {
               ".write": "auth != null && auth.uid === $uid",
               ".validate": "newData.isString() && (newData.val() === 'classic-buzzer' || newData.val() === 'arcade-zap' || newData.val() === 'game-show-ding' || newData.val() === 'retro-blip' || newData.val() === 'synth-horn' || newData.val() === 'laser-pulse' || newData.val() === 'double-chime' || newData.val() === 'electric-pop')"
+            }
+          }
+        },
+        "scoreEvents": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid",
+          "$eventId": {
+            ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid && !data.exists()",
+            ".validate": "newData.hasChildren(['eventId', 'targetPlayerId', 'delta', 'scoreBefore', 'scoreAfter', 'changedBy', 'changedAt']) && newData.child('eventId').val() === $eventId",
+            "eventId": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+            },
+            "targetPlayerId": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64"
+            },
+            "targetDisplayName": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 24)"
+            },
+            "delta": {
+              ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= -20 && newData.val() <= 20"
+            },
+            "scoreBefore": {
+              ".validate": "newData.isNumber() && newData.val() >= -99 && newData.val() <= 999 && newData.val() % 1 === 0"
+            },
+            "scoreAfter": {
+              ".validate": "newData.isNumber() && newData.val() >= -99 && newData.val() <= 999 && newData.val() % 1 === 0"
+            },
+            "reason": {
+              ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 120)"
+            },
+            "changedBy": {
+              ".validate": "newData.isString() && newData.val() === root.child('rooms/' + $roomId + '/meta/hostUid').val()"
+            },
+            "changedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "videoSessionId": {
+              ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0)"
+            },
+            "roundNumber": {
+              ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0)"
             }
           }
         }

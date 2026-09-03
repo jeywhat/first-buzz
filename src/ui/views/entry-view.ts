@@ -45,7 +45,12 @@ export function renderEntryView(opts: {
 
   const title = document.createElement("h1");
   title.className = "vb-title";
-  title.textContent = "Video Buzzer";
+  const titleMain = document.createElement("span");
+  titleMain.textContent = "BuzzTube";
+  const titleTld = document.createElement("span");
+  titleTld.className = "vb-brand-tld";
+  titleTld.textContent = ".io";
+  title.append(titleMain, titleTld);
 
   const subtitle = document.createElement("p");
   subtitle.className = "vb-subtitle";

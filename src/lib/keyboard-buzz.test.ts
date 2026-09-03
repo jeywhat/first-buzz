@@ -28,6 +28,16 @@ function key(overrides: Partial<KeyboardInput> = {}): KeyboardInput {
   };
 }
 
+interface MockElement {
+  tagName: string;
+  isContentEditable: boolean;
+  hasAttribute(name: string): boolean;
+  getAttribute(name: string): string | null;
+  classList: { contains(cls: string): boolean };
+  closest(selector: string): MockElement | null;
+  parentElement: MockElement | null;
+}
+
 /**
  * Mock HTMLElement-like shape for the pure predicate.
  * No real DOM required — the predicate only reads tagName, isContentEditable,
@@ -38,13 +48,13 @@ function mockEl(shape: {
   isContentEditable?: boolean;
   attributes?: Record<string, string>;
   classList?: string[];
-  parentElement?: ReturnType<typeof mockEl> | null;
-}): any {
+  parentElement?: MockElement | null;
+}): MockElement {
   const attrs = new Map(Object.entries(shape.attributes ?? {}));
   const classes = new Set(shape.classList ?? []);
   const parent = shape.parentElement === undefined ? null : shape.parentElement;
 
-  return {
+  const node: MockElement = {
     tagName: (shape.tagName ?? "DIV").toUpperCase(),
     isContentEditable: shape.isContentEditable ?? false,
     hasAttribute(name: string): boolean {
@@ -58,14 +68,15 @@ function mockEl(shape: {
         return classes.has(cls);
       },
     },
-    closest(selector: string): any {
-      if (selector === ".vb-modal" && classes.has("vb-modal")) return this;
+    closest(selector: string): MockElement | null {
+      if (selector === ".vb-modal" && classes.has("vb-modal")) return node;
       return parent?.closest(selector) ?? null;
     },
-    get parentElement(): any {
+    get parentElement(): MockElement | null {
       return parent;
     },
   };
+  return node;
 }
 
 /* ------------------------------------------------------------------ */
@@ -322,5 +333,11 @@ describe("canTriggerBuzzFromKeyboard", () => {
     const dialog = mockEl({ attributes: { role: "dialog" } });
     const child = mockEl({ tagName: "div", parentElement: dialog });
     expect(canTriggerBuzzFromKeyboard(key(), baseState, child)).toBe(false);
+  });
+
+  it("rejects focus inside an ancestor marked data-disable-buzz-shortcuts (scoring form)", () => {
+    const form = mockEl({ attributes: { "data-disable-buzz-shortcuts": "" } });
+    const input = mockEl({ tagName: "input", parentElement: form });
+    expect(canTriggerBuzzFromKeyboard(key(), baseState, input)).toBe(false);
   });
 });

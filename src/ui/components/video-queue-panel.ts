@@ -13,7 +13,8 @@ export interface VideoQueuePanelOptions {
   moveItem(itemId: string, dir: "up" | "down"): Promise<void>;
   removeItem(itemId: string): Promise<void>;
   clearQueue(): Promise<number>;
-  launch(itemId: string, autoplay: boolean): void;
+  /** Must resolve after the authoritative launch write settles. */
+  launch(itemId: string, autoplay: boolean): Promise<void>;
   /** Computes and launches the next queued item (or first when none active). */
   playNext(): void;
 }
@@ -83,6 +84,21 @@ export function createVideoQueuePanel(
   }
 
   let duplicatePending = false;
+  // Rapid-click dedup: while any queue mutation or launch is in flight,
+  // further panel actions are ignored (prevents double-add / double-launch).
+  let busy = false;
+  function withBusy(run: () => Promise<unknown>): () => void {
+    return () => {
+      if (busy) return;
+      busy = true;
+      void Promise.resolve()
+        .then(run)
+        .catch(() => {}) // errors are surfaced by the caller (toasts/logs)
+        .finally(() => {
+          busy = false;
+        });
+    };
+  }
 
   async function submitAdd(allowDuplicate: boolean): Promise<void> {
     const raw = urlInput.value;
@@ -115,13 +131,11 @@ export function createVideoQueuePanel(
     }
   }
 
-  addBtn.addEventListener("click", () => {
-    void submitAdd(duplicatePending);
-  });
+  addBtn.addEventListener("click", withBusy(() => submitAdd(duplicatePending)));
   urlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      void submitAdd(duplicatePending);
+      withBusy(() => submitAdd(duplicatePending))();
     }
   });
 
@@ -129,29 +143,29 @@ export function createVideoQueuePanel(
     const launchBtn = el("button", "vb-btn vb-btn--small vb-btn--success", "Launch");
     launchBtn.type = "button";
     launchBtn.disabled = view.active?.id === item.id;
-    launchBtn.addEventListener("click", () => opts.launch(item.id, false));
+    launchBtn.addEventListener("click", withBusy(() => opts.launch(item.id, false)));
 
     const launchPlay = el("button", "vb-btn vb-btn--small", "Launch & play ▶");
     launchPlay.type = "button";
     launchPlay.classList.add("vb-btn--ghost");
     launchPlay.disabled = view.active?.id === item.id;
-    launchPlay.addEventListener("click", () => opts.launch(item.id, true));
+    launchPlay.addEventListener("click", withBusy(() => opts.launch(item.id, true)));
 
     const upBtn = el("button", "vb-btn vb-btn--ghost vb-btn--small", "↑ Move up");
     upBtn.type = "button";
     upBtn.setAttribute("aria-label", `Move ${item.videoId} up`);
-    upBtn.addEventListener("click", () => void opts.moveItem(item.id, "up"));
+    upBtn.addEventListener("click", withBusy(() => opts.moveItem(item.id, "up")));
 
     const downBtn = el("button", "vb-btn vb-btn--ghost vb-btn--small", "↓ Move down");
     downBtn.type = "button";
     downBtn.setAttribute("aria-label", `Move ${item.videoId} down`);
-    downBtn.addEventListener("click", () => void opts.moveItem(item.id, "down"));
+    downBtn.addEventListener("click", withBusy(() => opts.moveItem(item.id, "down")));
 
     const remBtn = el("button", "vb-btn vb-btn--ghost vb-btn--small vb-link-danger", "Remove");
     remBtn.type = "button";
     remBtn.disabled = view.active?.id === item.id;
     remBtn.title = view.active?.id === item.id ? "Active item — select another video first" : "";
-    remBtn.addEventListener("click", () => void opts.removeItem(item.id));
+    remBtn.addEventListener("click", withBusy(() => opts.removeItem(item.id)));
 
     row.append(launchBtn, launchPlay, upBtn, downBtn, remBtn);
   }

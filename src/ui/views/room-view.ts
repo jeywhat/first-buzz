@@ -1,49 +1,74 @@
 import { renderConnectionBadge } from "../components/connection-badge";
 import { renderParticipantList } from "../components/participant-list";
 import type { RoomViewHandles } from "../types";
+import type { ParticipantView } from "../../types/participant";
 
 /**
- * Room page — responsive, desktop-first game interface.
+ * BuzzTube.io room page — Neo-Arcade light theme.
  *
- * DOM (see .vb-room-page/.vb-room-shell in styles.css):
+ * DOM:
  *   main.vb-room-page
- *     div.vb-room-shell
- *       header.vb-room-header   — brand, room code + copy, status pills, leave
- *       div.vb-room-main
- *         div.vb-room-primary   — video region, buzzer (main.ts appends)
- *         aside.vb-room-sidebar — host controls, scoreboard, diagnostics
+ *     header.vb-topbar            — brand, room chip, sound?, identity, leave
+ *     div.vb-room-main
+ *       section.vb-video-column
+ *         section.vb-video-card
+ *           div.vb-video-meta     — YouTube badge + title chip
+ *           div.vb-video-shell    — player mounts here (neutral context)
+ *           div.vb-video-status-strip
+ *           div.vb-buzz-popup-region
+ *       aside.vb-game-sidebar
+ *         (arenaSlot)             — Player Arena w/ central BUZZ
+ *         participants            — complete accessible scoreboard
+ *         playerQueue slot        — read-only queue summary
+ *         (host/scoring/feed appended by main.ts)
+ *         settings drawer         — sound + diagnostics on demand
  */
 export function renderRoomView(opts: {
   code: string;
+  uid: string;
   isHost: boolean;
   onLeave(): void;
 }): RoomViewHandles {
   const root = document.createElement("main");
   root.className = "vb-room-page";
 
-  const shell = document.createElement("div");
-  shell.className = "vb-room-shell";
-
-  /* ---------- Header ---------- */
+  /* ---------- Top bar ---------- */
 
   const header = document.createElement("header");
-  header.className = "vb-room-header";
+  header.className = "vb-topbar";
 
-  const brand = document.createElement("span");
+  const headerLeft = document.createElement("div");
+  headerLeft.className = "vb-topbar-left";
+
+  const brand = document.createElement("div");
   brand.className = "vb-brand";
-  brand.textContent = "Video Buzzer";
+  const brandIcon = document.createElement("span");
+  brandIcon.className = "vb-brand-icon";
+  brandIcon.setAttribute("aria-hidden", "true");
+  brandIcon.textContent = "▶";
+  const brandText = document.createElement("span");
+  brandText.className = "vb-brand-text";
+  brandText.innerHTML = "";
+  brandText.append("BuzzTube", Object.assign(document.createElement("span"), { className: "vb-brand-tld", textContent: ".io" }));
+  brand.append(brandIcon, brandText);
 
-  // Room code + copy invite — compact, always visible.
+  const divider = document.createElement("span");
+  divider.className = "vb-topbar-divider";
+  divider.setAttribute("aria-hidden", "true");
+
   const codeGroup = document.createElement("div");
-  codeGroup.className = "vb-header-code";
-
+  codeGroup.className = "vb-room-chip";
+  const codeLabel = document.createElement("span");
+  codeLabel.className = "vb-room-chip-label";
+  codeLabel.textContent = "PARTIE";
   const codeEl = document.createElement("span");
-  codeEl.className = "vb-code";
-  codeEl.textContent = opts.code;
+  codeEl.className = "vb-room-chip-code";
+  codeEl.textContent = `#${opts.code}`;
 
   const copyBtn = document.createElement("button");
-  copyBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
-  copyBtn.textContent = "Copy link";
+  copyBtn.className = "vb-room-chip-copy";
+  copyBtn.type = "button";
+  copyBtn.textContent = "⧉";
   copyBtn.setAttribute("aria-label", "Copy invite link");
 
   let resetTimer = 0;
@@ -51,42 +76,65 @@ export function renderRoomView(opts: {
     copyBtn.textContent = text;
     window.clearTimeout(resetTimer);
     resetTimer = window.setTimeout(() => {
-      copyBtn.textContent = "Copy link";
+      copyBtn.textContent = "⧉";
     }, 1400);
   }
 
   copyBtn.addEventListener("click", () => {
     const link = `${location.origin}${location.pathname}?room=${opts.code}`;
     navigator.clipboard.writeText(link).then(
-      () => flash("Copied!"),
-      () => flash("Copy failed"),
+      () => flash("OK!"),
+      () => flash("…"),
     );
   });
 
-  codeGroup.append(codeEl, copyBtn);
+  codeGroup.append(codeLabel, codeEl, copyBtn);
+  headerLeft.append(brand, divider, codeGroup);
 
-  // Status pills: round state + connected player count.
-  const roundBadge = document.createElement("span");
-  roundBadge.className = "vb-status-pill";
-  roundBadge.hidden = true;
+  const headerRight = document.createElement("div");
+  headerRight.className = "vb-topbar-right";
 
-  const playerCount = document.createElement("span");
-  playerCount.className = "vb-status-pill";
-  playerCount.hidden = true;
+  // Sound toggle (reference: mute control lives in the top bar). The click
+  // handler is wired in main.ts against the canonical audio service.
+  const soundToggle = document.createElement("button");
+  soundToggle.className = "vb-sound-toggle";
+  soundToggle.type = "button";
+  soundToggle.textContent = "🔊";
+  soundToggle.setAttribute("aria-label", "Toggle game sounds");
+  soundToggle.setAttribute("aria-pressed", "true");
 
   const badge = renderConnectionBadge();
+
+  // Identity card — updated live via setParticipants (self lookup).
+  const identity = document.createElement("div");
+  identity.className = "vb-identity";
+  const identityAvatar = document.createElement("span");
+  identityAvatar.className = "vb-identity-avatar";
+  identityAvatar.textContent = "–";
+  identityAvatar.setAttribute("aria-hidden", "true");
+  const identityText = document.createElement("span");
+  identityText.className = "vb-identity-text";
+  const identityName = document.createElement("span");
+  identityName.className = "vb-identity-name";
+  identityName.textContent = "…";
+  const identityScore = document.createElement("span");
+  identityScore.className = "vb-identity-score";
+  identityScore.textContent = "0 pts";
+  identityText.append(identityName, identityScore);
+  identity.append(identityAvatar, identityText);
 
   const hostTag = document.createElement("span");
   hostTag.className = "vb-host-tag";
   hostTag.hidden = !opts.isHost;
-  hostTag.textContent = "Host";
+  hostTag.textContent = "👑 HOST";
 
   const leaveBtn = document.createElement("button");
   leaveBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
-  leaveBtn.textContent = "← Leave";
+  leaveBtn.textContent = "Leave";
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
-  header.append(brand, codeGroup, roundBadge, playerCount, badge.root, hostTag, leaveBtn);
+  headerRight.append(soundToggle, badge.root, identity, hostTag, leaveBtn);
+  header.append(headerLeft, headerRight);
 
   /* ---------- Connection banner ---------- */
 
@@ -101,59 +149,110 @@ export function renderRoomView(opts: {
   const mainArea = document.createElement("div");
   mainArea.className = "vb-room-main";
 
-  // Primary column: video region only (buzzer lives in sidebar for viewport fit).
-  const primary = document.createElement("div");
-  primary.className = "vb-room-primary";
+  const videoColumn = document.createElement("section");
+  videoColumn.className = "vb-video-column";
 
-  const videoRegion = document.createElement("div");
-  videoRegion.className = "vb-video-region";
+  const videoCard = document.createElement("section");
+  videoCard.className = "vb-video-card";
 
-  videoRegion.append(); // player root appended by main.ts
-  primary.append(videoRegion);
+  const videoMeta = document.createElement("div");
+  videoMeta.className = "vb-video-meta";
+  const sourceBadge = document.createElement("span");
+  sourceBadge.className = "vb-source-badge";
+  sourceBadge.textContent = "▶ YOUTUBE";
+  const titleChip = document.createElement("span");
+  titleChip.className = "vb-video-title-chip";
+  titleChip.textContent = "Live quiz arena";
+  videoMeta.append(sourceBadge, titleChip);
 
-  // Sidebar: buzzer (top, sticky) + participants + host controls + diagnostics.
+  const videoShell = document.createElement("div");
+  videoShell.className = "vb-video-shell";
+  // (player root + idle empty state are inserted here by main.ts)
+
+  const statusStrip = document.createElement("div");
+  statusStrip.className = "vb-video-status-strip";
+  const stripIcon = document.createElement("span");
+  stripIcon.textContent = "🎵";
+  stripIcon.setAttribute("aria-hidden", "true");
+  const stripText = document.createElement("span");
+  stripText.textContent = "Listen closely — buzz first, answer out loud!";
+  const stripChip = document.createElement("span");
+  stripChip.className = "vb-strip-chip";
+  stripChip.textContent = "Host sets the points";
+  statusStrip.append(stripIcon, stripText, stripChip);
+
+  const buzzPopupRegion = document.createElement("div");
+  buzzPopupRegion.className = "vb-buzz-popup-region";
+  buzzPopupRegion.setAttribute("role", "status");
+  buzzPopupRegion.setAttribute("aria-live", "polite");
+  buzzPopupRegion.setAttribute("aria-atomic", "true");
+
+  videoCard.append(videoMeta, videoShell, statusStrip, buzzPopupRegion);
+  videoColumn.append(videoCard);
+
+  /* ---------- Sidebar ---------- */
+
   const sidebar = document.createElement("aside");
-  sidebar.className = "vb-room-sidebar";
+  sidebar.className = "vb-game-sidebar";
 
-  // Buzzer slot — first child so it stays visible via position:sticky.
-  const buzzerSlot = document.createElement("div");
-  buzzerSlot.className = "vb-buzzer-slot";
-
-  // Buzzer Stage slot — directly below the buzzer, above the player list.
-  const stageSlot = document.createElement("div");
-  stageSlot.className = "vb-stage-slot";
+  const arenaSlot = document.createElement("div");
+  arenaSlot.className = "vb-arena-slot";
 
   const participants = renderParticipantList();
 
-  const hint = document.createElement("p");
-  hint.className = "vb-hint";
-  hint.textContent = "Share the link — answers are given by voice on Discord.";
+  const playerQueueSlot = document.createElement("div");
+  playerQueueSlot.className = "vb-player-queue-slot";
 
-  sidebar.append(buzzerSlot, stageSlot, participants.root, hint);
+  const settings = document.createElement("details");
+  settings.className = "vb-settings-drawer";
+  const settingsSummary = document.createElement("summary");
+  settingsSummary.textContent = "⚙️ Settings & diagnostics";
+  const settingsContent = document.createElement("div");
+  settingsContent.className = "vb-settings-content";
+  settings.append(settingsSummary, settingsContent);
 
-  mainArea.append(primary, sidebar);
-  shell.append(header, connBanner, mainArea);
-  root.append(shell);
+  sidebar.append(arenaSlot, participants.root, playerQueueSlot, settings);
+
+  mainArea.append(videoColumn, sidebar);
+  root.append(header, connBanner, mainArea);
 
   return {
     root,
-    videoColumn: videoRegion,
-    buzzerColumn: buzzerSlot,
-    stageColumn: stageSlot,
+    videoColumn: videoShell,
+    buzzPopupColumn: buzzPopupRegion,
+    arenaSlot,
+    settingsContent,
+    titleChip,
+    soundToggle,
+    identity: { avatar: identityAvatar, name: identityName, score: identityScore, root: identity },
     sidebar,
-    setParticipants: participants.setParticipants,
+    setParticipants: (list: ParticipantView[]) => {
+      participants.setParticipants(list);
+      const me = list.find((p) => p.uid === opts.uid) ?? null;
+      if (me) {
+        identityName.textContent = me.name;
+        identityScore.textContent = `${me.score} pts`;
+        identityAvatar.style.setProperty("--player-color", me.color);
+        identityAvatar.textContent = me.name
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0]?.toUpperCase() ?? "")
+          .join("");
+      }
+    },
     setConnectionState(online) {
       badge.setOnline(online);
       connBanner.hidden = online;
     },
     setRoundStatus(state) {
-      roundBadge.hidden = !state;
-      roundBadge.dataset.state = state ?? "";
-      roundBadge.textContent = state ? `Round · ${state}` : "";
+      titleChip.dataset.state = state ?? "";
+      titleChip.textContent = state ? `Round · ${state}` : "Live quiz arena";
     },
     setPlayerCount(online, total) {
-      playerCount.hidden = total === 0;
-      playerCount.textContent = `${online}/${total} online`;
+      void online;
+      void total; // header identity + arena badge carry counts now
     },
   };
 }

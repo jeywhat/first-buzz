@@ -1,9 +1,12 @@
 import type { RoundData } from "../../types";
 
 export interface HostPanelCallbacks {
-  onCorrect(): void;
-  onWrong(): void;
-  onCancel(): void;
+  /** Resumes global playback WITHOUT touching the round or scores. */
+  onResume(): void;
+  /** Opens the next buzz: clears winner, roundNumber+1, state open. No score/playback change. */
+  onOpenNext(): void;
+  /** Coherently opens the next buzz AND resumes playback (one video command). */
+  onResumeAndNext(): void;
   onNewRound(): void;
   /** Broadcasts the current position to every client (seq bump). */
   onResync(): void;
@@ -57,24 +60,24 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   hostBuzzRow.append(hostBuzzToggle, hostBuzzText);
 
-  /* Judgment actions after a buzz */
+  /* Post-buzz controls — visible only while a round is "buzzed". */
   const actions = document.createElement("div");
   actions.className = "vb-mod-actions";
 
-  const correctBtn = makeButton(
-    "Correct answer: +1 and resume",
+  const resumeBtn = makeButton(
+    "▶ Resume video",
     "vb-btn vb-btn--small vb-btn--success",
   );
-  const wrongBtn = makeButton(
-    "Wrong answer: resume without points",
-    "vb-btn vb-btn--small vb-btn--ghost",
+  const openNextBtn = makeButton(
+    "Open next buzz",
+    "vb-btn vb-btn--primary vb-btn--small",
   );
-  const cancelBtn = makeButton(
-    "Cancel buzz: reopen the round",
+  const resumeNextBtn = makeButton(
+    "Resume + open next buzz",
     "vb-btn vb-btn--small vb-btn--ghost",
   );
 
-  actions.append(correctBtn, wrongBtn, cancelBtn);
+  actions.append(resumeBtn, openNextBtn, resumeNextBtn);
 
   /* Manual round + danger zone */
   const row = document.createElement("div");
@@ -139,14 +142,17 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   function render(): void {
     const awaitingVerdict = round?.state === "buzzed";
+    // Post-buzz controls: visible while the round waits for the host, hidden
+    // entirely otherwise. "Resume video" also hides while already playing.
     actions.hidden = !awaitingVerdict || busy;
+    resumeBtn.hidden = !awaitingVerdict || playing;
+    openNextBtn.hidden = !awaitingVerdict;
+    resumeNextBtn.hidden = !awaitingVerdict;
 
-    correctBtn.disabled = busy;
-    wrongBtn.disabled = busy;
-    cancelBtn.disabled = busy;
-
-    // Manual round opening: only when nothing is running and video is parked.
-    const canOpenManually = !!round && round.state !== "open" && !playing;
+    // "New round" stays for idle (non-open, non-buzzed) states only, so the
+    // buzzed view never offers two competing ways to open a round.
+    const canOpenManually =
+      !!round && round.state !== "open" && round.state !== "buzzed" && !playing;
     newRoundBtn.hidden = !canOpenManually || busy;
     resyncBtn.disabled = busy;
     resetBtn.disabled = busy;
@@ -158,9 +164,9 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
     };
   }
 
-  correctBtn.addEventListener("click", guard(cb.onCorrect));
-  wrongBtn.addEventListener("click", guard(cb.onWrong));
-  cancelBtn.addEventListener("click", guard(cb.onCancel));
+  resumeBtn.addEventListener("click", guard(cb.onResume));
+  openNextBtn.addEventListener("click", guard(cb.onOpenNext));
+  resumeNextBtn.addEventListener("click", guard(cb.onResumeAndNext));
   newRoundBtn.addEventListener("click", guard(cb.onNewRound));
   resyncBtn.addEventListener("click", guard(cb.onResync));
   resetBtn.addEventListener("click", guard(() => {

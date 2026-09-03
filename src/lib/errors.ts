@@ -46,14 +46,22 @@ export function describeAuthError(err: unknown): string {
 
 /** Maps Realtime Database failures to actionable, user-readable messages. */
 export function describeDbError(err: unknown): string {
-  switch (errorCode(err)) {
+  const code = errorCode(err);
+  switch (code) {
     case "permission-denied":
+    case "PERMISSION_DENIED":
+    case "permission_denied":
       return (
         "Realtime Database denied the operation. " +
         "Make sure the database exists and that rules matching docs/data-model.md are deployed."
       );
     default: {
-      const code = errorCode(err);
+      // Firebase RTDB errors always carry a STRING code (e.g. "unavailable").
+      // A NUMERIC code means the exception is not from Firebase at all
+      // (DOM codes: 8 = NotFoundError, 18 = SecurityError, 19 = NetworkError…).
+      if (typeof err === "object" && err !== null && typeof (err as { code?: unknown }).code === "number") {
+        return `Unexpected client error (DOM code ${(err as { code: number }).code}). Check the console for details.`;
+      }
       return `Database error${code ? ` (${code})` : ""}. Check your connection and Firebase setup.`;
     }
   }

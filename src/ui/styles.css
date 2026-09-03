@@ -1,51 +1,205 @@
-/* Video Buzzer UI components */
+/* ============================================================
+   BuzzTube.io — Neo-Arcade Flat Tactility design system
+   Light warm canvas, ink outlines, hard offset shadows, pills.
+   Functional rules (iframe neutrality, [hidden], overlays) are
+   preserved exactly — see VIDEO SHELL / OVERLAY sections below.
+   ============================================================ */
 
 :root {
-  --room-page-gutter: clamp(12px, 1.5vw, 32px);
-  --room-gap: clamp(12px, 1.25vw, 24px);
-  --sidebar-width: clamp(300px, 19vw, 360px);
-  --header-height: 64px;
+  /* Palette */
+  --vb-primary: #ff4b72;
+  --vb-primary-dark: #d92f58;
+  --vb-primary-deep: #991b1b;
+  --vb-secondary: #38d9a9;
+  --vb-secondary-dark: #0ca678;
+  --vb-tertiary: #ffa900;
+  --vb-tertiary-dark: #e08c00;
+  --vb-blue: #4d96ff;
+  --vb-ink: #272935;
+  --vb-cream: #fff9f2;
+  --vb-card: #ffffff;
+  --vb-muted: #f0eae1;
+  --vb-canvas: #eef2f9;
+  --vb-danger: #ef476f;
+
+  /* Shape & elevation */
+  --vb-outline-w: 3px;
+  --vb-outline: var(--vb-outline-w) solid var(--vb-ink);
+  --vb-outline-thin: 2px solid var(--vb-ink);
+  --vb-card-radius: 24px;
+  --vb-control-radius: 999px;
+  --vb-hard-shadow: 0 4px 0 var(--vb-ink);
+  --vb-card-shadow: 0 6px 0 var(--vb-ink);
+  --vb-hard-shadow-sm: 0 3px 0 var(--vb-ink);
+
+  /* Typography */
+  --vb-font-display: "Rubik", system-ui, sans-serif;
+  --vb-font-body: "Quicksand", system-ui, sans-serif;
 }
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--vb-font-body);
+  font-weight: 600;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--vb-font-display);
+  color: var(--vb-ink);
+}
+
+button {
+  font-family: var(--vb-font-display);
+}
+
+/* Keyboard focus must always be visible */
+:focus-visible {
+  outline: 3px solid var(--vb-blue);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Browser-safe fallback: a hidden element must NEVER cover the video. */
+[hidden] {
+  display: none !important;
+}
+
+/* ============================================================
+   Buttons — chunky arcade pills
+   ============================================================ */
+
+.vb-btn {
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  padding: 11px 20px;
+  border-radius: var(--vb-control-radius);
+  cursor: pointer;
+  border: var(--vb-outline-thin);
+  background: var(--vb-card);
+  color: var(--vb-ink);
+  box-shadow: var(--vb-hard-shadow-sm);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+}
+
+.vb-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--vb-ink);
+}
+
+.vb-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--vb-ink);
+}
+
+.vb-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.vb-btn--primary {
+  background: var(--vb-primary);
+  color: #fff;
+}
+
+.vb-btn--primary:hover:not(:disabled) {
+  background: var(--vb-primary-dark);
+}
+
+.vb-btn--ghost {
+  background: var(--vb-card);
+}
+
+.vb-btn--ghost:hover:not(:disabled) {
+  background: var(--vb-muted);
+}
+
+.vb-btn--success {
+  background: var(--vb-secondary);
+  color: var(--vb-ink);
+}
+
+.vb-btn--success:hover:not(:disabled) {
+  background: var(--vb-secondary-dark);
+  color: #fff;
+}
+
+.vb-btn--danger {
+  background: var(--vb-danger);
+  color: #fff;
+}
+
+.vb-btn--danger:hover:not(:disabled) {
+  background: #d63a60;
+}
+
+.vb-btn--small {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.vb-btn--flush {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* ============================================================
+   Entry view
+   ============================================================ */
 
 .vb-entry {
   width: min(560px, 100%);
   margin-inline: auto;
   padding: 24px;
-  box-sizing: border-box;
 }
 
-/* Entry view */
 .vb-title {
-  font-size: clamp(2rem, 8vw, 3rem);
+  font-family: var(--vb-font-display);
+  font-size: clamp(2.2rem, 8vw, 3rem);
+  font-weight: 900;
   margin: 0 0 4px;
   letter-spacing: -0.02em;
+  color: var(--vb-ink);
+}
+
+.vb-title .vb-brand-tld,
+.vb-brand-tld {
+  color: var(--vb-primary);
 }
 
 .vb-subtitle {
-  margin: 0 0 28px;
-  opacity: 0.65;
+  margin: 0 0 24px;
+  font-weight: 600;
+  color: #5a6172;
 }
 
-/* Home page cards */
 .vb-card {
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
-  padding: 18px 20px;
-  margin-bottom: 16px;
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: var(--vb-card-shadow);
 }
 
 .vb-card-title {
+  font-family: var(--vb-font-display);
   font-size: 0.85rem;
+  font-weight: 800;
   margin: 0 0 14px;
-  opacity: 0.7;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.vb-btn--flush {
-  width: 100%;
-  margin-top: 4px;
+  letter-spacing: 0.1em;
+  color: #5a6172;
 }
 
 .vb-field {
@@ -56,138 +210,425 @@
 }
 
 .vb-label {
+  font-family: var(--vb-font-display);
   font-size: 0.85rem;
-  opacity: 0.75;
+  font-weight: 700;
+  color: var(--vb-ink);
 }
 
 .vb-input {
+  font-family: var(--vb-font-body);
   font-size: 16px; /* >=16px avoids iOS focus zoom */
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid #2a2f3d;
-  background: #1b1e27;
-  color: inherit;
+  font-weight: 600;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: var(--vb-outline-thin);
+  background: var(--vb-cream);
+  color: var(--vb-ink);
   outline: none;
   width: 100%;
-  box-sizing: border-box;
 }
 
 .vb-input:focus {
-  border-color: #e11d48;
+  border-color: var(--vb-blue);
 }
 
 .vb-input--code {
   text-transform: uppercase;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.3em;
 }
 
 .vb-field-error {
-  color: #f87171;
+  color: var(--vb-danger);
+  font-family: var(--vb-font-display);
+  font-weight: 700;
   font-size: 0.85rem;
   min-height: 1em;
 }
 
 .vb-form-error {
-  color: #f87171;
-  font-size: 0.9rem;
+  color: var(--vb-danger);
+  font-family: var(--vb-font-display);
+  font-weight: 700;
   margin-top: 14px;
   white-space: pre-wrap;
 }
 
-/* Buttons */
-.vb-btn {
-  font: inherit;
-  font-weight: 600;
-  padding: 12px 18px;
-  border-radius: 10px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s ease, border-color 0.15s ease;
+/* ============================================================
+   Top bar
+   ============================================================ */
+
+.vb-topbar {
+  width: 100%;
+  background: var(--vb-card);
+  border-bottom: var(--vb-outline);
+  padding: 10px clamp(12px, 1.5vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
-.vb-btn--primary {
-  background: #e11d48;
+.vb-topbar-left,
+.vb-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vb-topbar-divider {
+  width: 2px;
+  height: 24px;
+  background: #d5dde9;
+  flex: none;
+}
+
+.vb-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.vb-brand-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: var(--vb-primary);
+  border: var(--vb-outline-thin);
   color: #fff;
-  width: 100%;
-  margin-top: 8px;
-}
-
-.vb-btn--primary:hover {
-  background: #be123c;
-}
-
-.vb-btn--ghost {
-  background: transparent;
-  color: inherit;
-  border-color: #2a2f3d;
-  width: 100%;
-  margin-top: 10px;
-}
-
-.vb-btn--ghost:hover {
-  border-color: #3b4252;
-}
-
-.vb-btn--small {
-  padding: 8px 12px;
-  font-size: 0.85rem;
-  width: auto;
-  margin-top: 0;
-}
-
-/* Room layout grid — stable architecture for the player.
-   Main column uses minmax(0, 1fr) so it can shrink without collapsing;
-   the sidebar is fixed-range and drops below the player on mobile. */
-.room-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: 1rem;
-  align-items: start;
+  place-items: center;
+  font-size: 1rem;
+  box-shadow: var(--vb-hard-shadow-sm);
+}
+
+.vb-brand-text {
+  font-family: var(--vb-font-display);
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--vb-ink);
+  white-space: nowrap;
+}
+
+.vb-brand-tld {
+  color: var(--vb-primary);
+}
+
+.vb-room-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: #fef3c7;
+  border: var(--vb-outline-thin);
+  box-shadow: var(--vb-hard-shadow-sm);
+  min-width: 0;
+}
+
+.vb-room-chip-label {
+  font-family: var(--vb-font-display);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #b45309;
+}
+
+.vb-room-chip-code {
+  font-family: var(--vb-font-display);
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--vb-ink);
+  white-space: nowrap;
+}
+
+.vb-room-chip-copy {
+  border: 1.5px solid var(--vb-ink);
+  background: var(--vb-card);
+  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--vb-ink);
+}
+
+.vb-room-chip-copy:hover {
+  background: var(--vb-tertiary);
+}
+
+/* Identity (current user) */
+
+.vb-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px 5px 6px;
+  border-radius: var(--vb-control-radius);
+  background: #ecfdf5;
+  border: var(--vb-outline-thin);
+  box-shadow: var(--vb-hard-shadow-sm);
+  min-width: 0;
+}
+
+.vb-identity-avatar {
+  --player-color: var(--vb-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--vb-ink);
+  background: var(--player-color);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.8rem;
+  flex: none;
+}
+
+.vb-identity-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vb-identity-name {
+  font-family: var(--vb-font-display);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--vb-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.vb-identity-score {
+  font-family: var(--vb-font-display);
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: var(--vb-secondary-dark);
+}
+
+.vb-host-tag {
+  font-family: var(--vb-font-display);
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--vb-ink);
+  background: var(--vb-tertiary);
+  border: var(--vb-outline-thin);
+  padding: 4px 10px;
+  border-radius: var(--vb-control-radius);
+  white-space: nowrap;
+  box-shadow: var(--vb-hard-shadow-sm);
+}
+
+.vb-sound-toggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: var(--vb-muted);
+  border: var(--vb-outline-thin);
+  box-shadow: var(--vb-hard-shadow-sm);
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  flex: none;
+}
+
+.vb-sound-toggle:hover {
+  background: #e2e8f0;
+}
+
+.vb-sound-toggle:active {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+
+/* Connection badge */
+.vb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--vb-font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 6px 12px;
+  border-radius: var(--vb-control-radius);
+  border: var(--vb-outline-thin);
+  background: var(--vb-card);
+  white-space: nowrap;
+  box-shadow: var(--vb-hard-shadow-sm);
+}
+
+.vb-badge__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--vb-ink);
+  background: #94a3b8;
+}
+
+.vb-badge--online .vb-badge__dot {
+  background: var(--vb-secondary);
+}
+
+.vb-badge__label {
+  color: var(--vb-ink);
+}
+
+/* ============================================================
+   Room page grid
+   ============================================================ */
+
+.vb-room-page {
+  min-height: 100dvh;
   width: 100%;
+  padding: clamp(12px, 1.5vw, 22px);
+  overflow-x: clip;
+}
+
+.vb-room-main {
+  width: min(100%, 1780px);
+  min-width: 0;
   margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(12px, 1.5vw, 22px);
+  align-items: start;
 }
 
-.video-column {
-  min-width: 0;
-  width: 100%;
-}
-
-.room-sidebar {
-  min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .room-layout {
-    grid-template-columns: minmax(0, 1fr);
+@media (min-width: 1100px) {
+  .vb-room-main {
+    grid-template-columns: minmax(0, 1fr) clamp(320px, 22vw, 400px);
   }
 }
 
-/* Video player SHELL — stable, definite geometry at every viewport.
-   aspect-ratio + overflow:hidden are safe here because the shell lives in a
-   minmax(0, 1fr) grid track (definite width), and the iframe surface is kept
-   in sync with the shell by ResizeObserver -> player.setSize(). */
-.vb-player {
-  margin-bottom: 16px;
+.vb-video-column {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  align-content: start;
 }
 
-.vb-video-frame {
+.vb-game-sidebar {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+@media (min-width: 1100px) {
+  .vb-game-sidebar {
+    max-height: calc(100dvh - 110px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding-right: 3px;
+    padding-bottom: 4px;
+  }
+}
+
+/* ============================================================
+   Video card
+   ============================================================ */
+
+.vb-video-card {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: var(--vb-card-radius);
+  padding: clamp(10px, 1.2vw, 16px);
+  box-shadow: var(--vb-card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-video-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.vb-source-badge {
+  font-family: var(--vb-font-display);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: #e11d48;
+  border: 2px solid var(--vb-ink);
+  border-radius: 10px;
+  padding: 4px 10px;
+}
+
+.vb-video-title-chip {
+  font-family: var(--vb-font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vb-ink);
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 10px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+.vb-video-title-chip[data-state="buzzed"] {
+  background: var(--vb-tertiary);
+}
+
+/* ---------- VIDEO SHELL — neutral rendering context ----------
+   No transform/filter/backdrop-filter/mask/clip-path here or on any
+   ancestor of the iframe. Geometry kept identical to the proven fix. */
+
+.vb-video-shell {
   position: relative;
   width: 100%;
   min-width: 0;
   min-height: 200px;
   aspect-ratio: 16 / 9;
-  max-height: calc(100dvh - 230px);
+  max-height: calc(100dvh - 320px);
   overflow: hidden;
-  background: #000;
-  border-radius: 16px;
+  background: #0f172a;
+  border-radius: 18px;
+  border: var(--vb-outline);
   isolation: isolate;
 }
 
-.vb-video-region {
+.vb-player {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.vb-video-frame {
   position: relative;
+  width: 100%;
+  height: 100%;
   min-width: 0;
-  isolation: isolate;
+  overflow: hidden;
+  background: #000;
 }
 
 .vb-video-mount,
@@ -201,14 +642,10 @@
   border: 0;
 }
 
-/* Keep the iframe above the shell background and below only intentional UI
-   layers. No pseudo-element covers any part of the video surface. */
 .vb-video-mount {
   background: #000;
 }
 
-/* Blocks native iframe interaction for everyone — host included. All playback
-   changes flow through Firebase state, never through YouTube's own UI. */
 .vb-video-shield {
   position: absolute;
   inset: 0;
@@ -223,21 +660,66 @@
   display: grid;
   place-items: center;
   background: #000;
-  color: #9aa3b5;
+  color: #cbd5e1;
+  font-family: var(--vb-font-display);
+  font-weight: 700;
   font-size: 0.9rem;
 }
 
-/* Browser-safe fallback: a hidden element must NEVER cover the video.
-   Author display values (grid/flex/…) override the UA [hidden] rule — this
-   is exactly how the old always-mounted error layer blacked out the player. */
-.vb-video-error[hidden],
-[hidden] {
-  display: none !important;
+/* ---------- Host playback controls (overlay at the video bottom) ----------
+   The controls div lives after .vb-video-frame inside the absolutely
+   positioned .vb-player. Positioned as an in-shell overlay (above the
+   shield, below loading/error) so the host can pause/seek without leaving
+   the video — matching the reference design. Players never get this node. */
+.vb-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(
+    to top,
+    rgba(15, 23, 42, 0.92),
+    rgba(15, 23, 42, 0.55) 60%,
+    transparent
+  );
+  border-radius: 0 0 15px 15px;
 }
 
-/* Error overlay — the element EXISTS only while an error is active
-   (created in showVideoError(), removed entirely in clearVideoError()).
-   Styling below applies only to the actively-shown overlay. */
+.vb-controls .vb-btn--small {
+  flex: none;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+}
+
+.vb-controls .vb-btn:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+.vb-slider {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  accent-color: var(--vb-tertiary);
+  cursor: pointer;
+}
+
+.vb-time {
+  flex: none;
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+/* Error overlay — created only while active, removed entirely otherwise. */
 .vb-video-error {
   position: absolute;
   inset: 0;
@@ -246,7 +728,7 @@
   place-content: center;
   gap: 0.75rem;
   padding: 1.5rem;
-  background: rgba(10, 10, 16, 0.94);
+  background: rgba(15, 23, 42, 0.96);
   color: #fff;
   text-align: center;
 }
@@ -254,7 +736,7 @@
 .vb-video-error h2 {
   margin: 0;
   font-size: 1.15rem;
-  color: #f87171;
+  color: #fda4af;
 }
 
 .vb-video-error p {
@@ -262,105 +744,636 @@
   font-size: 0.95rem;
 }
 
-/* Video controls */
-.vb-controls {
+/* Idle empty state — normal content, never an overlay */
+.vb-video-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  background: var(--vb-cream);
+}
+
+.vb-video-empty[hidden] {
+  display: none !important;
+}
+
+.vb-video-empty__icon {
+  font-size: 2.2rem;
+}
+
+.vb-video-empty h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.vb-video-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #5a6172;
+}
+
+/* Status strip */
+.vb-video-status-strip {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  background: var(--vb-cream);
+  border: var(--vb-outline-thin);
+  border-radius: 16px;
+  padding: 10px 14px;
 }
 
-.vb-slider {
+.vb-video-status-strip > span:first-child {
+  font-size: 1.15rem;
+}
+
+.vb-strip-chip {
+  margin-left: auto;
+  font-family: var(--vb-font-display);
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #92400e;
+  background: #fef3c7;
+  border: 2px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Buzz popup (below the video — normal flow sibling)
+   ============================================================ */
+
+.vb-buzz-popup-region {
+  min-width: 0;
+  width: 100%;
+}
+
+.vb-buzz-popup {
+  --winner-color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 10px 14px;
+  background: var(--vb-cream);
+  border: var(--vb-outline);
+  border-left: 8px solid var(--winner-color);
+  border-radius: 18px;
+  box-shadow: var(--vb-hard-shadow-sm);
+}
+
+.vb-buzz-popup--enter {
+  animation: vb-popup-enter 0.28s ease-out;
+}
+
+@keyframes vb-popup-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px); /* popup card only — never ancestors */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vb-buzz-popup__avatar {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--winner-color);
+  border: 2.5px solid var(--vb-ink);
+}
+
+.vb-buzz-popup__text {
   flex: 1;
   min-width: 0;
-  accent-color: #e11d48;
 }
 
-.vb-time {
+.vb-buzz-popup__headline {
+  margin: 0;
+  font-family: var(--vb-font-display);
+  font-size: 1.02rem;
+  line-height: 1.2;
+  color: var(--vb-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-buzz-popup__name {
+  font-weight: 900;
+}
+
+.vb-buzz-popup__subline {
+  margin: 2px 0 0;
+  font-family: var(--vb-font-display);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5a6172;
+}
+
+.vb-buzz-popup--you .vb-buzz-popup__subline {
+  color: var(--vb-secondary-dark);
+}
+
+.vb-buzz-popup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.vb-buzz-popup--pending {
+  border-left-color: #cbd5e1;
+  color: #5a6172;
+  font-family: var(--vb-font-display);
+  font-weight: 700;
+}
+
+/* ============================================================
+   Player Arena — circular orbit + central buzzer
+   ============================================================ */
+
+.vb-arena-slot {
+  min-width: 0;
+}
+
+.vb-player-arena {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: var(--vb-card-radius);
+  padding: 14px 16px 16px;
+  box-shadow: var(--vb-card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-arena-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #eef2f9;
+  flex-wrap: wrap;
+}
+
+.vb-arena-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vb-arena-live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vb-secondary);
+  border: 2px solid var(--vb-ink);
   flex: none;
-  font-size: 0.8rem;
-  opacity: 0.7;
-  font-variant-numeric: tabular-nums;
 }
 
-/* Buzzer */
+.vb-arena-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.vb-arena-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vb-arena-badge {
+  font-family: var(--vb-font-display);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  border-radius: 10px;
+  border: 2px solid var(--vb-ink);
+  padding: 3px 9px;
+  white-space: nowrap;
+  background: var(--vb-muted);
+  color: var(--vb-ink);
+}
+
+.vb-arena-badge--host {
+  background: var(--vb-tertiary);
+}
+
+.vb-arena-badge--online {
+  background: #ecfdf5;
+}
+
+/* Orbit stage */
+
+.vb-arena-stage {
+  /* Square stage = true circle; radius var keeps podiums inside the ring. */
+  --vb-arena-radius: 34%;
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+  aspect-ratio: 1 / 1;
+  min-height: 300px;
+}
+
+@media (max-height: 860px) and (min-width: 1100px) {
+  .vb-arena-stage {
+    min-height: 260px;
+    max-width: 360px;
+  }
+}
+
+@media (max-width: 767px) {
+  .vb-arena-stage {
+    --vb-arena-radius: 38%;
+  }
+}
+
+.vb-arena-rings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.vb-arena-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  width: min(50%, 180px);
+}
+
+.vb-arena-players {
+  position: absolute;
+  inset: 0;
+}
+
+.vb-arena-overflow {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  font-family: var(--vb-font-display);
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #5a6172;
+  background: var(--vb-muted);
+  border: var(--vb-outline-thin);
+  border-radius: var(--vb-control-radius);
+  padding: 2px 10px;
+  z-index: 12;
+}
+
+/* Podium player on the ring */
+
+.vb-arena-player {
+  position: absolute;
+  left: var(--player-x, 50%);
+  top: var(--player-y, 50%);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  z-index: 5;
+  width: max-content;
+  max-width: 30%;
+}
+
+.vb-arena-avatar {
+  --player-color: #64748b;
+  position: relative;
+  width: clamp(38px, 4.2vw, 52px);
+  height: clamp(38px, 4.2vw, 52px);
+}
+
+.vb-arena-avatar .vb-avatar {
+  border-radius: 50%;
+  border: 2.5px solid var(--player-color);
+  overflow: hidden;
+  background: var(--vb-cream);
+  box-shadow: 0 2px 0 var(--vb-ink);
+}
+
+.vb-arena-avatar--winner .vb-avatar {
+  border-color: var(--vb-tertiary);
+  box-shadow: 0 0 0 3px #fde68a, 0 2px 0 var(--vb-ink);
+}
+
+.vb-arena-avatar--you .vb-avatar {
+  border-color: var(--vb-secondary);
+  box-shadow: 0 0 0 3px #a7f3d0, 0 2px 0 var(--vb-ink);
+}
+
+.vb-arena-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--vb-ink);
+  background: #94a3b8;
+}
+
+.vb-arena-dot--online {
+  background: var(--vb-secondary);
+}
+
+.vb-arena-dot--connecting,
+.vb-arena-dot--reconnecting {
+  background: var(--vb-tertiary);
+}
+
+.vb-arena-dot--offline {
+  background: #cbd5e1;
+}
+
+.vb-arena-player-you {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--vb-font-display);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--vb-secondary-dark);
+  border: 1.5px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 1px 7px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.vb-arena-player-win {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  font-family: var(--vb-font-display);
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: var(--vb-ink);
+  background: var(--vb-tertiary);
+  border: 2px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 1px 7px;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.vb-arena-plate {
+  background: var(--vb-card);
+  border: 2px solid var(--vb-ink);
+  border-radius: 12px;
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 2px 0 var(--vb-ink);
+  max-width: 100%;
+}
+
+.vb-arena-plate-name {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vb-arena-plate-name-text {
+  font-family: var(--vb-font-display);
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--vb-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vb-arena-plate-crown {
+  font-size: 0.6rem;
+  flex: none;
+}
+
+.vb-arena-plate-score {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.vb-arena-plate-score-value {
+  font-family: var(--vb-font-display);
+  font-size: 0.68rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--vb-ink);
+}
+
+.vb-arena-score-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1.5px solid var(--vb-ink);
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.72rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: transform 0.06s ease;
+}
+
+.vb-arena-score-btn:active {
+  transform: translateY(1px);
+}
+
+.vb-arena-score-btn--minus {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.vb-arena-score-btn--minus:hover {
+  background: #fecdd3;
+}
+
+.vb-arena-score-btn--plus {
+  background: #ccfbf1;
+  color: var(--vb-secondary-dark);
+}
+
+.vb-arena-score-btn--plus:hover {
+  background: #99f6e4;
+}
+
+/* State tints */
+.vb-arena-player--offline {
+  opacity: 0.45;
+}
+
+.vb-arena-player--reconnecting .vb-arena-plate {
+  border-style: dashed;
+}
+
+.vb-arena-player--winner .vb-arena-plate {
+  border-color: var(--vb-tertiary);
+  box-shadow: 0 2px 0 var(--vb-ink), 0 0 0 3px #fde68a;
+}
+
+.vb-arena-player--locked {
+  opacity: 0.72;
+}
+
+.vb-arena-score-pop .vb-arena-plate-score-value {
+  animation: vb-score-pop 0.4s ease-out;
+}
+
+@keyframes vb-score-pop {
+  40% {
+    transform: scale(1.35);
+    color: var(--vb-tertiary-dark);
+  }
+}
+
+.vb-arena-hostbar {
+  min-height: 0;
+}
+
+.vb-arena-fallback {
+  margin: 0;
+  font-size: 0.72rem;
+  text-align: center;
+  color: #7c8497;
+}
+
+/* ============================================================
+   Buzz panel — THE central arcade buzzer
+   ============================================================ */
+
 .vb-buzz {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  box-sizing: border-box;
-  padding: 20px;
-  margin-bottom: 16px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
 }
 
 .vb-buzz-btn {
-  font: inherit;
-  font-weight: 800;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
   letter-spacing: 0.08em;
-  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
   color: #fff;
-  width: min(220px, 60vw);
+  width: min(140px, 42vw);
   aspect-ratio: 1;
   border-radius: 50%;
-  border: none;
-  background: #3a3f4d;
-  opacity: 0.55;
+  border: 4px solid var(--vb-ink);
+  background: #94a3b8;
   cursor: not-allowed;
   user-select: none;
-  touch-action: manipulation; /* kills double-tap zoom on mobile */
-  transition: transform 0.06s ease, background 0.15s ease, box-shadow 0.15s ease;
+  touch-action: manipulation;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 10px 0 var(--vb-primary-deep), 0 14px 22px rgba(39, 41, 53, 0.25);
+  transition: transform 0.07s ease, box-shadow 0.07s ease, background 0.15s ease;
+}
+
+.vb-buzz-btn::before {
+  content: "📣";
+  font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+  line-height: 1;
 }
 
 .vb-buzz-btn--enabled {
-  background: #e11d48;
-  opacity: 1;
+  background: var(--vb-primary);
   cursor: pointer;
-  box-shadow: 0 0 24px rgba(225, 29, 72, 0.45), inset 0 -6px 14px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 0 var(--vb-primary-deep), 0 14px 22px rgba(39, 41, 53, 0.28),
+    inset 0 3px 0 rgba(255, 255, 255, 0.35);
 }
 
 .vb-buzz-btn--enabled:hover {
-  background: #be123c;
+  background: var(--vb-primary-dark);
 }
 
-.vb-buzz-btn--enabled:active {
-  transform: scale(0.96);
+.vb-buzz-btn--enabled:active,
+.vb-buzz-btn--pressed {
+  transform: translateY(7px);
+  box-shadow: 0 3px 0 var(--vb-primary-deep);
 }
 
 .vb-buzz-btn--won {
-  background: #16a34a;
-  opacity: 1;
+  background: var(--vb-secondary);
   cursor: default;
-  box-shadow: 0 0 24px rgba(22, 163, 74, 0.5);
+  box-shadow: 0 10px 0 var(--vb-secondary-dark), 0 14px 22px rgba(39, 41, 53, 0.25);
 }
 
 .vb-buzz-status {
   min-height: 1.2em;
-  font-size: 0.9rem;
-  opacity: 0.75;
+  font-family: var(--vb-font-display);
+  font-size: 0.8rem;
+  font-weight: 800;
   text-align: center;
+  color: #5a6172;
 }
 
 .vb-buzz-status--won {
-  color: #4ade80;
-  opacity: 1;
+  color: var(--vb-secondary-dark);
 }
 
 .vb-buzz-status--alert {
-  color: #f87171;
-  opacity: 1;
+  color: var(--vb-danger);
 }
 
-/* Keyboard shortcut hint — de-emphasized, hidden on touch-only devices. */
 .vb-buzz-kbd-hint {
   margin: 0;
-  font-size: 0.78rem;
-  opacity: 0.45;
-  text-align: center;
+  font-family: var(--vb-font-display);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: #5a6172;
+  background: var(--vb-muted);
+  border: 1.5px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 2px 10px;
 }
 
 @media (pointer: coarse) {
@@ -369,30 +1382,30 @@
   }
 }
 
+/* Winner + paused pills (inside buzz panel) */
 .vb-winner-card {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  background: #10121a;
-  border: 1px solid #2a2f3d;
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.vb-winner-card[hidden] {
-  display: none;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 12px;
+  padding: 8px 10px;
 }
 
 .vb-winner-card__chip {
   width: 14px;
   height: 14px;
-  border-radius: 4px;
+  border-radius: 5px;
+  border: 1.5px solid var(--vb-ink);
   flex: none;
 }
 
 .vb-winner-card__name {
-  font-weight: 700;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.85rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -401,344 +1414,9 @@
 .vb-winner-card__meta {
   margin-left: auto;
   flex: none;
-  font-size: 0.8rem;
-  opacity: 0.7;
+  font-size: 0.7rem;
+  color: #5a6172;
   font-variant-numeric: tabular-nums;
-}
-
-/* Host moderation panel */
-.vb-host-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 16px 20px;
-  margin-bottom: 16px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
-}
-
-/* Host-buzz toggle */
-.vb-host-buzz-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  user-select: none;
-}
-
-.vb-host-buzz-toggle {
-  width: 18px;
-  height: 18px;
-  accent-color: #e11d48;
-  cursor: pointer;
-  margin: 0;
-}
-
-.vb-host-buzz-text {
-  opacity: 0.9;
-}
-
-.vb-host-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.vb-mod-actions:not([hidden]) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.vb-btn--success {
-  background: #16a34a;
-  border-color: transparent;
-  color: #fff;
-}
-
-.vb-btn--success:hover {
-  background: #15803d;
-}
-
-.vb-btn--danger {
-  background: #e11d48;
-  border-color: transparent;
-  color: #fff;
-}
-
-.vb-btn--danger:hover {
-  background: #be123c;
-}
-
-.vb-link-danger {
-  background: none;
-  border: none;
-  padding: 4px;
-  color: #f87171;
-  opacity: 0.85;
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.vb-link-danger:hover {
-  opacity: 1;
-}
-
-/* Confirmation modal */
-.vb-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.vb-modal[hidden] {
-  display: none;
-}
-
-.vb-modal__box {
-  width: min(360px, 90vw);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
-}
-
-.vb-modal__title {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.vb-modal__text {
-  margin: 0;
-  font-size: 0.9rem;
-  opacity: 0.75;
-}
-
-.vb-modal__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Toasts */
-.vb-toasts {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.vb-toast {
-  max-width: 90vw;
-  padding: 10px 16px;
-  background: #22252f;
-  color: #e8eaf0;
-  border-radius: 10px;
-  border-left: 3px solid #22c55e;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  font-size: 0.9rem;
-  animation: vb-toast-in 0.18s ease;
-}
-
-.vb-toast--error {
-  border-left-color: #e11d48;
-}
-
-.vb-toast--leave {
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-@keyframes vb-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Host panel action rows */
-.vb-host-row-left {
-  display: flex;
-  gap: 8px;
-}
-
-/* Diagnostics */
-.vb-diag {
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  padding: 8px 12px;
-  background: #10121a;
-  border: 1px solid #2a2f3d;
-  border-radius: 10px;
-  font-size: 0.8rem;
-}
-
-.vb-diag summary {
-  cursor: pointer;
-  opacity: 0.7;
-}
-
-.vb-diag-grid {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 14px;
-  margin-top: 8px;
-}
-
-.vb-diag-label {
-  opacity: 0.55;
-}
-
-.vb-diag-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.vb-diag-value.vb-diag-bad {
-  color: #f87171;
-}
-
-/* Dev-only shell-width warning (import.meta.env.DEV builds) */
-.vb-dev-width-warning {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 70;
-  padding: 8px 14px;
-  background: #b91c1c;
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-align: center;
-}
-
-/* ============================================================
-   Quiz-night polish — final design pass (cascade overrides)
-   Goals: second-monitor readability, huge high-contrast buzzer,
-   a11y (focus/labels/contrast/live regions), calm win animation.
-   ============================================================
-
-/* Keyboard focus must always be visible */
-:focus-visible {
-  outline: 3px solid #7dd3fc;
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* Larger canvas for distance readability — entry stays a narrow card;
-   the room uses the full responsive page/shell architecture above. */
-.vb-entry {
-  width: min(560px, 100%);
-}
-
-/* Wide desktop: full available width up to 1920px, sidebar 360px */
-@media (min-width: 1600px) {
-  :root {
-    --room-gap: clamp(16px, 1.5vw, 28px);
-    --sidebar-width: 360px;
-  }
-}
-
-.vb-title {
-  font-size: clamp(2.4rem, 9vw, 3.6rem);
-  letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #fff, #cbd5e1);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.vb-subtitle {
-  opacity: 0.85;
-}
-
-.vb-hint {
-  opacity: 0.8;
-}
-
-.vb-diag summary {
-  opacity: 0.9;
-}
-
-/* Room code: readable from across the room */
-.vb-code {
-  color: #ffffff;
-  font-size: clamp(2.2rem, 9vw, 3rem);
-}
-
-.vb-btn--small {
-  padding: 10px 14px;
-  font-size: 0.95rem;
-}
-
-/* BUZZ button: bigger, glowing when armed, tactile on press */
-.vb-buzz {
-  padding: 26px 20px;
-  gap: 12px;
-}
-
-.vb-buzz-btn {
-  width: min(300px, 72vw);
-  font-size: clamp(2.2rem, 9vw, 3.2rem);
-  letter-spacing: 0.12em;
-}
-
-.vb-buzz-btn--enabled {
-  box-shadow:
-    0 0 0 4px rgba(225, 29, 72, 0.22),
-    0 0 34px rgba(225, 29, 72, 0.55),
-    inset 0 -8px 18px rgba(0, 0, 0, 0.35);
-  animation: vb-idle-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes vb-idle-pulse {
-  50% {
-    box-shadow:
-      0 0 0 4px rgba(225, 29, 72, 0.1),
-      0 0 20px rgba(225, 29, 72, 0.32),
-      inset 0 -8px 18px rgba(0, 0, 0, 0.35);
-  }
-}
-
-.vb-buzz-btn--pressed {
-  transform: scale(0.93);
-  filter: brightness(1.3);
-  box-shadow: none;
-}
-
-/* Winner card: name is the message; color only reinforces it */
-.vb-winner-card {
-  border-left: 6px solid #64748b;
-  padding: 14px;
-  font-size: 1.05rem;
-}
-
-.vb-winner-card__name {
-  font-size: clamp(1.4rem, 5vw, 2rem);
 }
 
 .vb-win-flash {
@@ -759,312 +1437,38 @@
   }
 }
 
-/* VIDEO PAUSED pill — amber, uppercase, impossible to miss */
 .vb-paused-pill {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.5);
-  background: rgba(251, 191, 36, 0.08);
-  border-radius: 999px;
-  padding: 6px 16px;
+  font-family: var(--vb-font-display);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #92400e;
+  border: 2px solid var(--vb-ink);
+  background: var(--vb-tertiary);
+  border-radius: var(--vb-control-radius);
+  padding: 4px 12px;
 }
 
-.vb-paused-pill[hidden] {
-  display: none;
+/* ============================================================
+   Scoreboard (complete accessible player list)
+   ============================================================ */
+
+.vb-participants {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
 }
 
-/* Round status pill (text carries the info; tint reinforces it) */
-.vb-status-pill {
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 999px;
-  padding: 3px 10px;
-  border: 1px solid #3a4152;
-  color: #cbd5e1;
-  background: rgba(148, 163, 184, 0.08);
-}
-
-.vb-status-pill[data-state="open"] {
-  color: #4ade80;
-  border-color: rgba(74, 222, 128, 0.45);
-  background: rgba(74, 222, 128, 0.08);
-}
-
-.vb-status-pill[data-state="buzzed"] {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.45);
-  background: rgba(251, 191, 36, 0.08);
-}
-
-.vb-status-pill[data-state="resolved"] {
-  color: #93c5fd;
-  border-color: rgba(147, 197, 253, 0.45);
-  background: rgba(147, 197, 253, 0.08);
-}
-
-.vb-status-pill[data-state="finished"] {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(248, 113, 113, 0.08);
-}
-
-/* Connection-lost banner: loud but not blocking */
-.vb-conn-banner {
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 14px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(248, 113, 113, 0.55);
-  background: rgba(225, 29, 72, 0.14);
-  color: #fecaca;
-  font-weight: 700;
-  text-align: center;
-}
-
-.vb-conn-banner[hidden] {
-  display: none;
-}
-
-/* Host panel must never read as player UI: amber identity band */
-.vb-host-panel {
-  border-color: rgba(251, 191, 36, 0.4);
-  background:
-    linear-gradient(180deg, rgba(251, 191, 36, 0.07), rgba(251, 191, 36, 0) 42%),
-    #181b23;
-}
-
-.vb-host-panel__label {
-  color: #fbbf24;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-/* Scoreboard slightly larger for the big screen */
 .vb-section-title {
-  font-size: 1.05rem;
-  opacity: 0.95;
-}
-
-.vb-participant__name {
-  font-size: 1.02rem;
-}
-
-/* Respect users who prefer minimal motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001s !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001s !important;
-  }
-}
-
-/* Room page — responsive desktop-first game interface.
-   Page gutter → shell (max 1920px, header + main grid) → main grid
-   (primary video column + compact sidebar). Single column below 1100px. */
-.vb-room-page {
-  min-height: 100dvh;
-  width: 100%;
-  padding: var(--room-page-gutter);
-  overflow-x: clip;
-  box-sizing: border-box;
-}
-
-.vb-room-shell {
-  width: min(100%, 1920px);
-  min-height: calc(100dvh - (var(--room-page-gutter) * 2));
-  margin-inline: auto;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--room-gap);
-}
-
-.vb-room-header {
-  min-width: 0;
-  min-height: var(--header-height);
-  display: flex;
-  align-items: center;
-  gap: 12px 16px;
-  padding: 10px 18px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
-}
-
-.vb-brand {
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  font-size: 1.02rem;
-  color: #fff;
-  white-space: nowrap;
-}
-
-.vb-header-code {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.vb-header-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.vb-room-main {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--room-gap);
-  align-items: start;
-}
-
-.vb-room-primary {
-  min-width: 0;
-  min-height: 0;
-}
-
-.vb-video-region {
-  position: relative;
-  min-width: 0;
-  isolation: isolate;
-}
-
-/* Buzzer slot — sits at the top of the sidebar; sticky on desktop scroll. */
-.vb-buzzer-slot {
-  min-width: 0;
-}
-
-.vb-room-sidebar {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: var(--room-gap);
-}
-
-/* Two-column desktop layout from 1100px */
-@media (min-width: 1100px) {
-  .vb-room-main {
-    grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
-  }
-
-  .vb-room-sidebar {
-    max-height: calc(100dvh - 120px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-right: 2px;
-  }
-
-  /* Buzzer stays visible at top of sidebar while content scrolls beneath. */
-  .vb-buzzer-slot {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    /* Opaque background so scrolled content doesn't bleed through. */
-    background: #12141a;
-    padding-bottom: 4px;
-  }
-
-  .vb-buzzer-slot .vb-buzz {
-    margin-bottom: 0;
-  }
-}
-
-/* Mobile/tablet: constrain video so buzzer is reachable without scrolling. */
-@media (max-width: 1099px) {
-  .vb-video-frame {
-    max-height: calc(100dvh - 360px);
-  }
-
-  .vb-buzzer-slot .vb-buzz {
-    margin-bottom: 0;
-  }
-}
-
-/* Compact header on small screens */
-@media (max-width: 759px) {
-  .vb-room-page {
-    padding: 12px;
-  }
-
-  .vb-room-header {
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    min-height: 0;
-  }
-
-  .vb-header-code {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-.vb-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+  font-family: var(--vb-font-display);
   font-size: 0.8rem;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid #2a2f3d;
-  white-space: nowrap;
-}
-
-.vb-badge__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #64748b;
-}
-
-.vb-badge--online .vb-badge__dot {
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
-}
-
-.vb-host-tag {
-  font-size: 0.75rem;
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.35);
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.vb-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: clamp(1.3rem, 2.5vw, 1.9rem);
-  letter-spacing: 0.22em;
-  font-weight: 700;
-  color: #ffffff;
-  white-space: nowrap;
-}
-
-.vb-hint {
-  font-size: 0.85rem;
-  opacity: 0.7;
-  margin: 0;
-}
-
-/* Participant list */
-.vb-section-title {
-  font-size: 0.95rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   margin: 0 0 10px;
-  opacity: 0.8;
+  color: var(--vb-ink);
 }
 
 .vb-participant-list {
@@ -1073,17 +1477,17 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .vb-participant {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 10px;
-  padding: 10px 12px;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 12px;
+  padding: 7px 10px;
 }
 
 .vb-participant--offline {
@@ -1093,435 +1497,421 @@
 .vb-chip {
   width: 14px;
   height: 14px;
-  border-radius: 4px;
+  border-radius: 5px;
+  border: 1.5px solid var(--vb-ink);
   flex: none;
 }
 
 .vb-participant__name {
-  font-weight: 600;
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .vb-participant__host {
-  font-weight: 400;
-  font-size: 0.8rem;
-  opacity: 0.7;
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: var(--vb-tertiary-dark);
   margin-left: 6px;
 }
 
 .vb-participant__meta {
   margin-left: auto;
-  font-size: 0.8rem;
-  opacity: 0.65;
+  font-family: var(--vb-font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #5a6172;
   flex: none;
 }
 
 .vb-empty {
-  opacity: 0.5;
-  padding: 10px 12px;
+  color: #7c8497;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.vb-hint {
+  font-size: 0.85rem;
+  color: #5a6172;
+  margin: 0;
 }
 
 /* ============================================================
-   Buzzer Stage — visual enhancement (no game-state changes)
+   Read-only player queue summary
    ============================================================ */
 
-.vb-stage-slot {
+.vb-player-queue-slot {
   min-width: 0;
 }
 
-.vb-stage {
-  position: relative;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 12px 10px;
-  margin-bottom: 16px;
-  border-radius: 14px;
-  border: 1px solid #2a2f3d;
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(225, 29, 72, 0.10), transparent 60%),
-    #14171f;
-  overflow: hidden;
+.vb-pq {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
 }
 
-.vb-stage__track {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  max-width: 100%;
-}
-
-.vb-podium {
-  --podium-color: #3a3f4d;
-  position: relative;
-  flex: 0 0 auto;
-  width: 72px;
+.vb-pq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 5px;
+}
+
+.vb-pq-item {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 4px 5px;
+  gap: 8px;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--podium-color) 16%, #181b23);
-  border: 1px solid color-mix(in srgb, var(--podium-color) 45%, transparent);
+  padding: 6px 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
-.vb-podium__avatar {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #0e1016;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+.vb-pq-item--active {
+  background: #ecfdf5;
 }
 
-.vb-avatar {
-  position: relative;
-  width: 100%;
-  height: 100%;
+.vb-pq-item--more {
+  opacity: 0.6;
 }
 
-.vb-avatar__svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+.vb-vq-badge {
+  flex: none;
+  font-family: var(--vb-font-display);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5a6172;
+  border: 1.5px solid var(--vb-ink);
+  border-radius: var(--vb-control-radius);
+  padding: 1px 7px;
+  background: var(--vb-card);
 }
 
-.vb-avatar__initials {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 0.85rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  pointer-events: none;
+.vb-vq-badge--active {
+  color: var(--vb-secondary-dark);
+  background: #d1fae5;
 }
 
-.vb-podium__name {
-  max-width: 100%;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.1;
-  text-align: center;
+.vb-vq-title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--vb-font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
 }
 
-.vb-podium__meta {
+/* ============================================================
+   Host panel
+   ============================================================ */
+
+.vb-host-panel {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vb-host-panel__label {
+  font-family: var(--vb-font-display);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--vb-tertiary-dark);
+}
+
+.vb-host-buzz-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.68rem;
-  opacity: 0.85;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
 }
 
-.vb-podium__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex: none;
-  background: #64748b;
+.vb-host-buzz-toggle {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--vb-primary);
+  cursor: pointer;
+  margin: 0;
 }
 
-.vb-podium__dot--online {
-  background: #22c55e;
-  box-shadow: 0 0 5px rgba(34, 197, 94, 0.7);
-}
-
-.vb-podium__dot--connecting,
-.vb-podium__dot--reconnecting {
-  background: #fbbf24;
-}
-
-.vb-podium__dot--offline {
-  background: #475569;
-}
-
-.vb-podium__score {
-  font-variant-numeric: tabular-nums;
+.vb-host-buzz-text {
+  font-family: var(--vb-font-display);
   font-weight: 700;
 }
 
-/* "You" tag — text, not color alone. */
-.vb-podium__you {
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.58rem;
+.vb-host-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vb-host-row-left {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vb-mod-actions:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vb-mod-actions .vb-btn--small {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+}
+
+.vb-link-danger {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--vb-danger);
+  font-family: var(--vb-font-display);
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #0e1016;
-  background: #7dd3fc;
-  border-radius: 999px;
-  padding: 1px 6px;
-  z-index: 2;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
-/* "FIRST!" badge — text, not color alone; static winner state */
-.vb-podium__first-badge {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.56rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  color: #0e1016;
-  background: #fbbf24;
-  border-radius: 999px;
-  padding: 1px 6px;
-  z-index: 3;
-  display: none;
+.vb-link-danger:hover {
+  color: #b91c1c;
 }
 
-.vb-podium--winner .vb-podium__first-badge {
-  display: block;
+/* ============================================================
+   Manual scoring (host)
+   ============================================================ */
+
+.vb-scoring {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
 }
 
-.vb-podium--winner {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 1px #fbbf24, 0 0 14px rgba(251, 191, 36, 0.35);
+.vb-scoring-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 230px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-bottom: 10px;
+  padding-right: 2px;
 }
 
-/* Static winner glow brightens while buzz flash plays (player-color ring). */
-.vb-podium--buzz-flash {
-  animation: vb-buzz-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.35);
-  z-index: 2;
+.vb-scoring-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
-.vb-podium--buzz-flash .vb-podium__avatar {
-  animation: vb-buzz-glow 0.68s ease-out;
-}
-
-@keyframes vb-buzz-pop {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  30% {
-    transform: translateY(-6px) scale(1.04);
-  }
-  60% {
-    transform: translateY(-2px) scale(1.02);
-  }
-  100% {
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes vb-buzz-glow {
-  0% {
-    box-shadow:
-      0 0 0 0 rgba(251, 191, 36, 0),
-      0 0 0 3px var(--podium-color);
-  }
-  40% {
-    box-shadow:
-      0 0 18px 4px var(--podium-color),
-      0 0 0 4px var(--podium-color);
-  }
-  100% {
-    box-shadow:
-      0 0 24px 6px rgba(251, 191, 36, 0),
-      0 0 0 3px var(--podium-color);
-  }
-}
-
-.vb-podium--offline {
+.vb-scoring-row--offline .vb-scoring-name {
   opacity: 0.5;
 }
 
-.vb-podium--host .vb-podium__name {
-  color: #fbbf24;
-}
-
-/* "+N" overflow card */
-.vb-podium--more {
-  background: #181b23;
-  border-style: dashed;
-  border-color: #3a4152;
-  justify-content: center;
-}
-
-.vb-podium__more-count {
-  font-size: 1.1rem;
+.vb-scoring-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--vb-font-display);
   font-weight: 800;
-  color: #cbd5e1;
-}
-
-/* Mobile / tablet: horizontal scroll row with snap points. */
-@media (max-width: 1099px) {
-  .vb-stage__track {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    overscroll-behavior-x: contain;
-    padding-bottom: 4px;
-  }
-
-  .vb-podium {
-    width: 76px;
-    scroll-snap-align: start;
-  }
-}
-
-/* Dev-only stage inspector */
-.vb-dev-stage {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  z-index: 70;
-  max-width: 320px;
-  padding: 8px 12px;
-  background: #1e293b;
-  color: #e2e8f0;
-  border-top: 1px solid #334155;
-  border-right: 1px solid #334155;
-  border-top-right-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  white-space: pre;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .vb-podium--winner {
-    animation: none;
-    box-shadow: 0 0 0 1px #fbbf24, 0 0 12px rgba(251, 191, 36, 0.4);
-  }
-
-  /* Static, informative winner indication — no movement required. */
-  .vb-podium--buzz-flash,
-  .vb-podium--buzz-flash .vb-podium__avatar {
-    animation: none;
-  }
-  .vb-podium--buzz-flash {
-    box-shadow: 0 0 0 3px #fbbf24;
-  }
-}
-
-/* ============================================================
-   Buzz-event stage feedback (Firebase-state-derived classes)
-   ============================================================ */
-
-/* Compact status strip: "{Name} buzzed first!" */
-.vb-stage__status {
-  margin: 6px 4px 2px;
-  min-height: 1.1em;
   font-size: 0.82rem;
-  font-weight: 700;
+}
+
+.vb-scoring-value {
+  flex: none;
+  min-width: 2.2em;
+  text-align: right;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.vb-scoring-row .vb-btn--small {
+  flex: none;
+  padding: 4px 9px;
+  font-size: 0.72rem;
+}
+
+.vb-scoring-more {
+  position: relative;
+  flex: none;
+}
+
+.vb-scoring-more-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  border: 1.5px solid var(--vb-ink);
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.75rem;
+  background: var(--vb-card);
+}
+
+.vb-scoring-more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.vb-scoring-more-box {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: var(--vb-card);
+  border: var(--vb-outline-thin);
+  border-radius: 12px;
+  box-shadow: var(--vb-hard-shadow-sm);
+}
+
+.vb-scoring-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vb-scoring-form-row {
+  display: flex;
+  gap: 6px;
+}
+
+.vb-scoring-select {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.vb-scoring-amount {
+  flex: none;
+  width: 72px;
+  padding: 8px 10px;
+  font-size: 0.85rem;
   text-align: center;
-  color: #fbbf24;
-  opacity: 0.85;
-  transition: opacity 0.2s ease;
 }
 
-.vb-stage__status:not(.vb-stage__status--active) {
-  min-height: 1.1em; /* reserve space to avoid layout shift */
-}
-
-.vb-stage__status--active {
-  animation: vb-status-in 0.25s ease-out;
-}
-
-@keyframes vb-status-in {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 0.95;
-    transform: translateY(0);
-  }
-}
-
-/* Non-winners subtly locked while a buzz is awaiting verdict. */
-.vb-stage--has-buzz
-  .vb-stage__track
-  .vb-podium:not(.vb-podium--winner):not(.vb-podium--more) {
-  opacity: 0.62;
-  filter: saturate(0.85);
-  transition: opacity 0.25s ease;
-}
-
-/* Local pending transaction: gentle glow on my own podium only. */
-.vb-podium--pending {
-  animation: vb-pending-glow 1.15s ease-in-out infinite;
-  border-color: rgba(251, 191, 36, 0.55);
-}
-
-@keyframes vb-pending-glow {
-  50% {
-    box-shadow: 0 0 14px rgba(251, 191, 36, 0.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .vb-stage__status--active,
-  .vb-podium--pending {
-    animation: none;
-  }
+.vb-scoring-reason {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 8px 10px;
+  font-size: 0.85rem;
 }
 
 /* ============================================================
-   Video Queue — host panel, player summary, idle empty state
+   Score feed
    ============================================================ */
 
-.vb-video-empty {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 240px;
-  display: grid;
-  place-content: center;
+.vb-score-feed {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
+}
+
+.vb-score-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 170px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.vb-score-feed-item {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 32px 16px;
+  font-size: 0.8rem;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 10px;
+  padding: 4px 9px;
+}
+
+.vb-score-feed-delta {
+  flex: none;
+  min-width: 2.4em;
   text-align: center;
-  background: #14171f;
-  border: 1px dashed #3a4152;
-  border-radius: 16px;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  border-radius: 8px;
+  border: 1.5px solid var(--vb-ink);
+  padding: 1px 5px;
 }
 
-.vb-video-empty[hidden] {
-  display: none !important; /* belt & braces next to the global rule */
+.vb-score-feed-delta--plus {
+  color: var(--vb-secondary-dark);
+  background: #d1fae5;
 }
 
-.vb-video-empty__icon {
-  font-size: 2rem;
-  opacity: 0.75;
+.vb-score-feed-delta--minus {
+  color: var(--vb-danger);
+  background: #ffe4e6;
 }
 
-.vb-video-empty h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #e8eaf0;
+.vb-score-feed-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  color: var(--vb-ink);
 }
 
-.vb-video-empty p {
-  margin: 0;
-  font-size: 0.9rem;
-  opacity: 0.65;
-}
+/* ============================================================
+   Host video queue panel
+   ============================================================ */
 
-/* --- Host panel --- */
 .vb-vq-panel {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .vb-vq-details {
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
   padding: 12px 14px;
+  box-shadow: var(--vb-hard-shadow);
 }
 
 .vb-vq-details > .vb-section-title {
@@ -1530,9 +1920,7 @@
 }
 
 .vb-vq-count {
-  font-weight: 600;
-  opacity: 0.6;
-  font-variant-numeric: tabular-nums;
+  color: #7c8497;
 }
 
 .vb-vq-add-row {
@@ -1544,21 +1932,21 @@
 .vb-vq-url {
   flex: 1;
   min-width: 0;
-}
-
-.vb-field-error {
-  margin: 6px 0 0;
+  padding: 9px 12px;
+  font-size: 0.85rem;
 }
 
 .vb-vq-confirm-note {
   margin: 6px 0 0;
-  font-size: 0.82rem;
-  color: #fbbf24;
+  font-family: var(--vb-font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--vb-tertiary-dark);
 }
 
 .vb-vq-list {
   margin-top: 10px;
-  max-height: 320px; /* internal scroll — never pushes BUZZ off-screen */
+  max-height: 280px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
@@ -1570,21 +1958,22 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.vb-vq-item {
-  border: 1px solid #2a2f3d;
-  background: #14171f;
-  border-radius: 10px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
   gap: 6px;
 }
 
+.vb-vq-item {
+  border: 2px solid var(--vb-ink);
+  background: var(--vb-cream);
+  border-radius: 12px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .vb-vq-item--active {
-  border-color: rgba(74, 222, 128, 0.55);
+  background: #ecfdf5;
+  border-color: var(--vb-secondary-dark);
 }
 
 .vb-vq-item-head {
@@ -1594,43 +1983,16 @@
   min-width: 0;
 }
 
-.vb-vq-badge {
-  flex: none;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #cbd5e1;
-  border: 1px solid #3a4152;
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-
-.vb-vq-badge--active {
-  color: #4ade80;
-  border-color: rgba(74, 222, 128, 0.5);
-}
-
-.vb-vq-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-  font-size: 0.92rem;
+.vb-vq-item .vb-btn--small {
+  padding: 5px 9px;
+  font-size: 0.72rem;
 }
 
 .vb-vq-id {
   flex: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.7rem;
-  opacity: 0.5;
-}
-
-.vb-vq-item .vb-btn--small {
-  padding: 6px 9px;
-  font-size: 0.78rem;
+  font-size: 0.62rem;
+  color: #7c8497;
 }
 
 .vb-vq-footer {
@@ -1638,6 +2000,7 @@
   justify-content: space-between;
   gap: 8px;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .vb-sr-only {
@@ -1648,51 +2011,46 @@
   overflow: hidden;
 }
 
-/* --- Player read-only summary --- */
-.vb-pq {
-  margin-bottom: 14px;
+/* ============================================================
+   Settings drawer (sound + diagnostics)
+   ============================================================ */
+
+.vb-settings-drawer {
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: 20px;
+  padding: 10px 14px;
+  box-shadow: var(--vb-hard-shadow);
 }
 
-.vb-pq-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.vb-settings-drawer > summary {
+  font-family: var(--vb-font-display);
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  user-select: none;
+  color: #5a6172;
 }
 
-.vb-pq-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 10px;
-  padding: 7px 10px;
-  font-size: 0.88rem;
-}
-
-.vb-pq-item--active {
-  border-color: rgba(74, 222, 128, 0.45);
-}
-
-.vb-pq-item--more {
-  opacity: 0.6;
-}
-
-/* Game sound panel — compact controls near buzzer, never covers it */
-.vb-sound-panel {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  background: #181b23;
-  border: 1px solid #2a2f3d;
-  border-radius: 14px;
+.vb-settings-content {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-top: 10px;
+}
+
+/* Sound panel */
+.vb-sound-panel {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
 }
 
 .vb-sound-enable {
@@ -1701,16 +2059,17 @@
 
 .vb-sound-hint {
   margin: 0;
-  font-size: 0.82rem;
-  color: #fbbf24;
-  opacity: 0.95;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--vb-tertiary-dark);
 }
 
 .vb-sound-mute-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   user-select: none;
 }
@@ -1718,44 +2077,32 @@
 .vb-sound-mute-check {
   width: 18px;
   height: 18px;
-  accent-color: #e11d48;
+  accent-color: var(--vb-primary);
   cursor: pointer;
   margin: 0;
 }
 
-.vb-sound-vol-row {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.vb-sound-vol-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  opacity: 0.85;
-}
-
-.vb-sound-vol {
-  width: 100%;
-  accent-color: #e11d48;
-}
-
+.vb-sound-vol-row,
 .vb-sound-profile-row {
   display: flex;
   gap: 8px;
-  align-items: flex-end;
 }
 
+.vb-sound-vol-label,
 .vb-sound-profile-label {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 0.85rem;
-  opacity: 0.85;
+  gap: 5px;
+  font-family: var(--vb-font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.vb-sound-vol {
+  width: 100%;
+  accent-color: var(--vb-primary);
 }
 
 .vb-sound-select {
@@ -1768,4 +2115,235 @@
   width: 1px;
   height: 1px;
   overflow: hidden;
+}
+
+/* Diagnostics */
+.vb-diag {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--vb-cream);
+  border: 2px solid var(--vb-ink);
+  border-radius: 14px;
+  font-size: 0.75rem;
+}
+
+.vb-diag summary {
+  cursor: pointer;
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+}
+
+.vb-diag-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 14px;
+  margin-top: 8px;
+}
+
+.vb-diag-label {
+  color: #7c8497;
+}
+
+.vb-diag-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.vb-diag-value.vb-diag-bad {
+  color: var(--vb-danger);
+}
+
+/* ============================================================
+   Modal + toasts
+   ============================================================ */
+
+.vb-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(39, 41, 53, 0.6);
+}
+
+.vb-modal__box {
+  width: min(360px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--vb-card);
+  border: var(--vb-outline);
+  border-radius: var(--vb-card-radius);
+  box-shadow: 0 8px 0 var(--vb-ink);
+}
+
+.vb-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.vb-modal__text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #5a6172;
+}
+
+.vb-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.vb-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.vb-toast {
+  max-width: 90vw;
+  padding: 10px 16px;
+  background: var(--vb-ink);
+  color: var(--vb-cream);
+  border-radius: 14px;
+  border: 2px solid var(--vb-ink);
+  box-shadow: 0 4px 0 rgba(39, 41, 53, 0.4);
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  animation: vb-toast-in 0.18s ease;
+}
+
+.vb-toast--error {
+  background: var(--vb-danger);
+  color: #fff;
+}
+
+.vb-toast--leave {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+@keyframes vb-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Dev-only panels
+   ============================================================ */
+
+.vb-dev-width-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  padding: 8px 14px;
+  background: #b91c1c;
+  color: #fff;
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.vb-dev-stage {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 70;
+  max-width: 320px;
+  padding: 8px 12px;
+  background: var(--vb-ink);
+  color: var(--vb-cream);
+  border-top-right-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  white-space: pre;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 1099px) {
+  .vb-video-shell {
+    max-height: calc(100dvh - 420px);
+  }
+
+  .vb-buzz-popup {
+    flex-wrap: wrap;
+  }
+
+  .vb-buzz-popup__text {
+    flex-basis: 100%;
+  }
+
+  .vb-buzz-popup__actions {
+    flex-basis: 100%;
+    justify-content: stretch;
+  }
+
+  .vb-buzz-popup__actions .vb-btn--small {
+    flex: 1 1 auto;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 759px) {
+  .vb-room-page {
+    padding: 10px;
+  }
+
+  .vb-topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .vb-topbar-divider,
+  .vb-identity {
+    display: none;
+  }
+
+  .vb-brand-text {
+    font-size: 1.15rem;
+  }
+
+  .vb-video-title-chip {
+    max-width: 100%;
+  }
+}
+
+/* ============================================================
+   Reduced motion
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

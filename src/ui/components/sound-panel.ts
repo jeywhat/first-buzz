@@ -27,6 +27,8 @@ export interface SoundPanelHandles {
   root: HTMLElement;
   setProfile(profileId: BuzzerSoundProfileId | null): void;
   setBlockedHintVisible(visible: boolean): void;
+  /** Syncs the mute checkbox + volume slider from the top-bar toggle. */
+  setMutedState(muted: boolean): void;
   dispose(): void;
 }
 
@@ -240,6 +242,10 @@ export function createSoundPanel(opts: {
       blockedHint.hidden = !visible;
       if (visible) blockedHint.textContent = "Enable game sounds for future buzzes";
       syncEnableVisibility();
+    },
+    setMutedState(muted) {
+      muteCheck.checked = muted;
+      volSlider.disabled = muted;
     },
     dispose() {
       // no listeners to remove beyond root removal; liveRegion etc will be GC'd

@@ -11,13 +11,25 @@ export interface EntryViewCallbacks {
 
 export interface RoomViewHandles {
   root: HTMLElement;
-  /** Video region inside the primary column (player mounts here). */
+  /** Video SHELL — the neutral mount point for the YouTube player. */
   videoColumn: HTMLElement;
-  /** Buzzer slot at the top of the sidebar. */
-  buzzerColumn: HTMLElement;
-  /** Slot for the Buzzer Stage, directly below the buzzer in the sidebar. */
-  stageColumn: HTMLElement;
-  /** Sidebar (host controls, scoreboard, diagnostics). */
+  /** Buzz popup region AFTER the shell — normal flow sibling, never an overlay. */
+  buzzPopupColumn: HTMLElement;
+  /** Player Arena slot — first card of the game sidebar (hosts the buzzer). */
+  arenaSlot: HTMLElement;
+  /** Content node of the collapsed settings/diagnostics drawer. */
+  settingsContent: HTMLElement;
+  /** Video meta chip (shows queue item label / round state). */
+  titleChip: HTMLElement;
+  /** Top-bar sound toggle (wired to the canonical audio service in main.ts). */
+  soundToggle: HTMLButtonElement;
+  /** Header identity elements (current user). */
+  identity: {
+    root: HTMLElement;
+    avatar: HTMLElement;
+    name: HTMLElement;
+    score: HTMLElement;
+  };
   sidebar: HTMLElement;
   setParticipants(list: ParticipantView[]): void;
   setConnectionState(online: boolean): void;
