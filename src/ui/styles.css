@@ -373,6 +373,115 @@ button {
   display: block;
 }
 
+/* ============================================================
+   TOP 3 podium (header middle) — DESKTOP ONLY
+   display:none on every narrower viewport: the one-line mobile
+   header and the tablet layout are untouched. Read-only render
+   from the participants snapshot (room-view setParticipants).
+   ============================================================ */
+
+.vb-top3 {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .vb-top3 {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+}
+
+.vb-top3-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-family: var(--vb-font-display);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.vb-top3-label-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.vb-top3-list {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.vb-top3-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px 10px;
+  background: var(--vb-cream);
+  border: var(--vb-outline-thin);
+  border-radius: 999px;
+}
+
+/* Rank 1: amber highlight (theme-aware via the amber vars). */
+.vb-top3-player--lead {
+  background: var(--vb-amber-bg);
+}
+
+.vb-top3-player--lead .vb-top3-name,
+.vb-top3-player--lead .vb-top3-score {
+  color: var(--vb-amber-ink);
+}
+
+.vb-top3-medal {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.vb-top3-avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--player-color, var(--vb-secondary));
+  border: 2px solid var(--vb-ink);
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.55rem;
+  flex: none;
+}
+
+.vb-top3-name {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.vb-top3-score {
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.vb-top3-divider {
+  width: 2px;
+  height: 18px;
+  background: var(--vb-dot);
+  flex: none;
+}
+
 .vb-brand {
   display: flex;
   align-items: center;

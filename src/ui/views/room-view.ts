@@ -1,5 +1,6 @@
 import { renderConnectionBadge } from "../components/connection-badge";
 import { renderParticipantList } from "../components/participant-list";
+import { createTop3Podium } from "../components/top3-podium";
 import { createThemeToggle } from "../../lib/theme";
 import type { RoomViewHandles } from "../types";
 import type { ParticipantView } from "../../types/participant";
@@ -148,7 +149,12 @@ export function renderRoomView(opts: {
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
   headerRight.append(soundToggle, createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
-  header.append(headerLeft, headerRight);
+
+  // TOP 3 podium — header MIDDLE, DESKTOP ONLY (CSS shows it at ≥1100px;
+  // hidden on every narrower viewport). Rendered from the participants
+  // snapshot in setParticipants — read-only, no Firebase involvement.
+  const top3 = createTop3Podium();
+  header.append(headerLeft, top3.root, headerRight);
 
   /* ---------- Connection banner ---------- */
 
@@ -234,6 +240,7 @@ export function renderRoomView(opts: {
     sidebar,
     setParticipants: (list: ParticipantView[]) => {
       participants.setParticipants(list);
+      top3.setParticipants(list);
       const me = list.find((p) => p.uid === opts.uid) ?? null;
       if (me) {
         identityName.textContent = me.name;
