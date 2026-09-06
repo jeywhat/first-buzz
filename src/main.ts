@@ -472,31 +472,16 @@ async function enterRoom(
         });
     };
 
-    /* Shared post-buzz actions: ONE canonical set used by BOTH the host
-       panel and the buzz popup (no duplicate video/round command paths). */
-    const postBuzzActions = {
-      // Resume playback only — round stays "buzzed", winner stays visible,
-      // scores untouched.
-      onResume: () =>
-        runModeration(
-          () => requestPlay(code, uid, player?.getPosition() ?? 0),
-          "Video resumed",
-        ),
-      // Clear the winner + arm buzzers. No score change, no playback change.
-      onOpenNext: () =>
-        runModeration(() => openNextRound(code), "Next buzz opened — buzzers armed"),
-      // Coherent combo: the ONE canonical doResume() path — (1) close the
-      // buzzed round into a new cooldown round (roundNumber+1, winner
-      // cleared), (2) resume playback via exactly one requestPlay. The prior
-      // winner key is already processed and the round node is replaced, so
-      // nothing replays. Shared by the buzzer, the host panel and the popup.
-      onResumeAndNext: () => doResume(),
-    };
-    buzzPopup.setActions(postBuzzActions);
+    /* Buzz popup action: the ONE canonical doResume() path — (1) close the
+       buzzed round into a new cooldown round (roundNumber+1, winner cleared),
+       (2) resume playback via exactly one requestPlay. The prior winner key
+       is already processed and the round node is replaced, so nothing
+       replays. Shared by the buzzer and the popup — no second path. The host
+       panel intentionally has no resume/open-next buttons anymore. */
+    buzzPopup.setActions({ onResumeAndNext: () => doResume() });
 
     if (isHost) {
       hostPanel = createHostPanel({
-        ...postBuzzActions,
         onNewRound: () => runModeration(() => openNextRound(code), "New round opened"),
         onResync: () =>
           runModeration(
@@ -531,7 +516,9 @@ async function enterRoom(
         },
       });
       hostPanel.setHostBuzzAllowed(allowHostToBuzz);
-      view.sidebar.insertBefore(hostPanel.root, view.sidebar.querySelector(".vb-settings-drawer"));
+      // Host controls live INSIDE the settings drawer (⚙️ Settings &
+      // diagnostics) — the sidebar keeps only the player queue.
+      view.settingsContent.append(hostPanel.root);
     }
 
     /* ---------------- Advanced scoring (host, in settings drawer) -------- */

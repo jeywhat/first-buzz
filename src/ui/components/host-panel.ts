@@ -1,12 +1,7 @@
 import type { RoundData } from "../../types";
 
 export interface HostPanelCallbacks {
-  /** Resumes global playback WITHOUT touching the round or scores. */
-  onResume(): void;
   /** Opens the next buzz: clears winner, roundNumber+1, state open. No score/playback change. */
-  onOpenNext(): void;
-  /** Coherently opens the next buzz AND resumes playback (one video command). */
-  onResumeAndNext(): void;
   onNewRound(): void;
   /** Broadcasts the current position to every client (seq bump). */
   onResync(): void;
@@ -17,7 +12,7 @@ export interface HostPanelCallbacks {
 
 export interface HostPanelHandles {
   root: HTMLElement;
-  /** Drives judgment-button visibility from the authoritative round node. */
+  /** Drives the manual "New round" shortcut (shown while video is paused). */
   setRound(round: RoundData | null): void;
   /** Drives the manual "New round" shortcut (shown while video is paused). */
   setVideoPlaying(playing: boolean): void;
@@ -37,7 +32,13 @@ function makeButton(label: string, className: string): HTMLButtonElement {
   return btn;
 }
 
-/** Host-only moderation controls. Rules re-enforce host rights server-side. */
+/**
+ * Host-only moderation controls, rendered INSIDE the settings drawer.
+ * Trimmed to its essentials: the resume/open-next actions live on the
+ * canonical mechanical buzzer and the buzz popup (single path), so this
+ * panel keeps only the manual "New round" shortcut, resync, host-buzz
+ * toggle and score reset. Rules re-enforce host rights server-side.
+ */
 export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   const root = document.createElement("section");
   root.className = "vb-host-panel";
@@ -60,26 +61,7 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   hostBuzzRow.append(hostBuzzToggle, hostBuzzText);
 
-  /* Post-buzz controls — visible only while a round is "buzzed". */
-  const actions = document.createElement("div");
-  actions.className = "vb-mod-actions";
-
-  const resumeBtn = makeButton(
-    "▶ Resume video",
-    "vb-btn vb-btn--small vb-btn--success",
-  );
-  const openNextBtn = makeButton(
-    "Open next buzz",
-    "vb-btn vb-btn--primary vb-btn--small",
-  );
-  const resumeNextBtn = makeButton(
-    "Resume + open next buzz",
-    "vb-btn vb-btn--small vb-btn--ghost",
-  );
-
-  actions.append(resumeBtn, openNextBtn, resumeNextBtn);
-
-  /* Manual round + danger zone */
+  /* Manual round + resync + danger zone */
   const row = document.createElement("div");
   row.className = "vb-host-row";
 
@@ -125,7 +107,7 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   modalBox.append(modalTitle, modalText, modalActions);
   modal.append(modalBox);
 
-  root.append(label, hostBuzzRow, actions, row);
+  root.append(label, hostBuzzRow, row);
   root.append(modal);
 
   /* ---------- state ---------- */
@@ -141,16 +123,9 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   }
 
   function render(): void {
-    const awaitingVerdict = round?.state === "buzzed";
-    // Post-buzz controls: visible while the round waits for the host, hidden
-    // entirely otherwise. "Resume video" also hides while already playing.
-    actions.hidden = !awaitingVerdict || busy;
-    resumeBtn.hidden = !awaitingVerdict || playing;
-    openNextBtn.hidden = !awaitingVerdict;
-    resumeNextBtn.hidden = !awaitingVerdict;
-
     // "New round" stays for idle (non-open, non-buzzed) states only, so the
-    // buzzed view never offers two competing ways to open a round.
+    // buzzed view never offers two competing ways to open a round — the
+    // resume/open-next flow lives on the canonical mechanical buzzer.
     const canOpenManually =
       !!round && round.state !== "open" && round.state !== "buzzed" && !playing;
     newRoundBtn.hidden = !canOpenManually || busy;
@@ -164,9 +139,6 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
     };
   }
 
-  resumeBtn.addEventListener("click", guard(cb.onResume));
-  openNextBtn.addEventListener("click", guard(cb.onOpenNext));
-  resumeNextBtn.addEventListener("click", guard(cb.onResumeAndNext));
   newRoundBtn.addEventListener("click", guard(cb.onNewRound));
   resyncBtn.addEventListener("click", guard(cb.onResync));
   resetBtn.addEventListener("click", guard(() => {

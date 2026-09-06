@@ -1824,17 +1824,6 @@ button {
   flex-wrap: wrap;
 }
 
-.vb-mod-actions:not([hidden]) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.vb-mod-actions .vb-btn--small {
-  padding: 8px 12px;
-  font-size: 0.78rem;
-}
-
 .vb-link-danger {
   background: none;
   border: none;
