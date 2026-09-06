@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#eef2f9" />
+    <meta name="theme-color" content="#eef2f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#13151d" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="BuzzTube.io — multiplayer video quiz arena. Watch together, buzz first, answer out loud." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,6 +14,20 @@
       rel="stylesheet"
     />
     <title>BuzzTube.io</title>
+    <script>
+      // Pre-paint theme resolution — avoids a light/dark flash on load.
+      (function () {
+        try {
+          var t = localStorage.getItem("vb-theme");
+          var dark =
+            t === "dark" ||
+            (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

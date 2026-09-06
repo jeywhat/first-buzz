@@ -1,5 +1,6 @@
 import { renderConnectionBadge } from "../components/connection-badge";
 import { renderParticipantList } from "../components/participant-list";
+import { createThemeToggle } from "../../lib/theme";
 import type { RoomViewHandles } from "../types";
 import type { ParticipantView } from "../../types/participant";
 
@@ -18,16 +19,19 @@ import type { ParticipantView } from "../../types/participant";
  *           div.vb-buzz-popup-region
  *       aside.vb-game-sidebar
  *         (arenaSlot)             — Player Arena w/ central BUZZ
- *         participants            — complete accessible scoreboard
+ *         participants            — Players panel: presence, avatar, score,
+ *                                   host-only −/+ adjustments (single source)
  *         playerQueue slot        — read-only queue summary
- *         (host/scoring/feed appended by main.ts)
- *         settings drawer         — sound + diagnostics on demand
+ *         (host tools appended by main.ts)
+ *         settings drawer         — sound + diagnostics + advanced scoring
  */
 export function renderRoomView(opts: {
   code: string;
   uid: string;
   isHost: boolean;
   onLeave(): void;
+  /** Canonical host score adjustment (adjustPlayerScore via main.ts). */
+  onAdjustScore(targetUid: string, delta: number): Promise<void>;
 }): RoomViewHandles {
   const root = document.createElement("main");
   root.className = "vb-room-page";
@@ -133,7 +137,7 @@ export function renderRoomView(opts: {
   leaveBtn.textContent = "Leave";
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
-  headerRight.append(soundToggle, badge.root, identity, hostTag, leaveBtn);
+  headerRight.append(soundToggle, createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
   header.append(headerLeft, headerRight);
 
   /* ---------- Connection banner ---------- */
@@ -198,7 +202,11 @@ export function renderRoomView(opts: {
   const arenaSlot = document.createElement("div");
   arenaSlot.className = "vb-arena-slot";
 
-  const participants = renderParticipantList();
+  const participants = renderParticipantList({
+    uid: opts.uid,
+    isHost: opts.isHost,
+    onAdjust: (target, delta) => opts.onAdjustScore(target.uid, delta),
+  });
 
   const playerQueueSlot = document.createElement("div");
   playerQueueSlot.className = "vb-player-queue-slot";

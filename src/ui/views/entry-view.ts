@@ -1,6 +1,7 @@
 import { MAX_NAME_LENGTH, validateDisplayName } from "../../lib/profile";
 import { parseRoomCode } from "../../lib/rooms";
 import { extractVideoId } from "../../lib/youtube";
+import { createThemeToggle } from "../../lib/theme";
 import type { EntryViewCallbacks } from "../types";
 
 /** Allows typing beyond the limit so the "too long" validation can be shown. */
@@ -171,7 +172,11 @@ export function renderEntryView(opts: {
   formError.className = "vb-form-error";
   formError.setAttribute("role", "alert");
 
-  root.append(title, subtitle, createCard, joinCard, formError);
+  const themeSlot = document.createElement("div");
+  themeSlot.className = "vb-entry-theme";
+  themeSlot.append(createThemeToggle());
+
+  root.append(themeSlot, title, subtitle, createCard, joinCard, formError);
   (opts.initialCode ? playerNameInput : ytInput).focus();
 
   return {

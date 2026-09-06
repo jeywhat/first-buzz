@@ -286,8 +286,9 @@ export function createPlayerArena(opts: PlayerArenaOptions): PlayerArenaHandles 
     const feedbackH = feedbackZone.offsetHeight;
 
     // Controls variant: the anchored trigger + popover (−1 / +1 at 44px)
-    // fits every sidebar width; the full inline [− score +] row lives in the
-    // host scoring panel below the arena. Non-host stations carry no controls.
+    // fits every sidebar width; the canonical full inline [− name score +]
+    // rows live in the Players panel below the arena. Non-host stations
+    // carry no controls.
     const size: SizeClass = "compact";
     const controls: ControlsVariant = opts.isHost ? (stageW >= 415 ? "inline" : "anchored") : "plain";
     stage.dataset.size = size;

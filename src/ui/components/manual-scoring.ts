@@ -28,7 +28,10 @@ function el<K extends keyof HTMLElementTagNameMap>(
 const EXTENDED_DELTAS = [-3, -2, 2, 3] as const;
 
 /**
- * Host-only manual scoring area. Buzz-independent: works in any round or
+ * Host-only advanced scoring area, mounted INSIDE the collapsed settings
+ * drawer (never in the default room UI). +1/−1 live in the Players panel
+ * rows; this card keeps the extended deltas (±2/±3 via the ⋯ menu) and the
+ * custom amount + reason form. Buzz-independent: works in any round or
  * playback state. The section carries data-disable-buzz-shortcuts so Enter
  * inside its inputs never triggers the global Space/Enter buzz shortcut.
  */
@@ -36,10 +39,10 @@ export function createManualScoring(
   opts: ManualScoringOptions,
 ): ManualScoringHandles {
   const root = el("section", "vb-scoring");
-  root.setAttribute("aria-label", "Manual scoring");
+  root.setAttribute("aria-label", "Advanced scoring");
   root.setAttribute("data-disable-buzz-shortcuts", "");
 
-  const title = el("h2", "vb-section-title", "Manual scoring");
+  const title = el("h2", "vb-section-title", "Advanced scoring");
   root.append(title);
   const rowsBox = el("div", "vb-scoring-rows");
 
@@ -82,17 +85,7 @@ export function createManualScoring(
     const score = el("span", "vb-scoring-value", String(p.score));
     score.dataset.role = "score";
 
-    const plus1 = el("button", "vb-btn vb-btn--small vb-btn--success", "+1");
-    plus1.type = "button";
-    plus1.setAttribute("aria-label", `Add 1 point to ${p.name}`);
-    plus1.addEventListener("click", () => void guarded(p, 1, null));
-
-    const minus1 = el("button", "vb-btn vb-btn--small", "−1");
-    minus1.type = "button";
-    minus1.classList.add("vb-btn--ghost");
-    minus1.setAttribute("aria-label", `Remove 1 point from ${p.name}`);
-    minus1.addEventListener("click", () => void guarded(p, -1, null));
-
+    // +1/−1 now live in the Players panel rows; only extended deltas remain.
     const more = el("details", "vb-scoring-more");
     const summary = el("summary", "vb-scoring-more-summary");
     summary.setAttribute("aria-label", `More score options for ${p.name}`);
@@ -110,7 +103,7 @@ export function createManualScoring(
     }
     more.append(summary, moreBox);
 
-    row.append(chip, name, score, minus1, plus1, more);
+    row.append(chip, name, score, more);
     return row;
   }
 

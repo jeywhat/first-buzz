@@ -1,92 +1,261 @@
-import type { ParticipantView, PresenceState } from "../../types/participant";
+import type { UserId } from "../../types/common";
+import type { ParticipantView } from "../../types/participant";
+import { comparePlayers, STATE_LABELS } from "../../lib/player-row";
+import { createGeneratedAvatar, getStableAvatarSeed } from "./generated-avatar";
 
-const STATE_LABELS: Record<PresenceState, string> = {
-  online: "online",
-  connecting: "connecting…",
-  reconnecting: "reconnecting…",
-  offline: "offline",
-};
-
-/** Presence first (online > connecting/reconnecting > offline), then score. */
-const STATE_RANK: Record<PresenceState, number> = {
-  online: 0,
-  connecting: 1,
-  reconnecting: 1,
-  offline: 2,
-};
-
-/** One list row. User-provided names are rendered via textContent only (XSS). */
-function row(p: ParticipantView): HTMLElement {
-  const li = document.createElement("li");
-  li.className =
-    "vb-participant" + (p.presenceState === "offline" ? " vb-participant--offline" : "");
-
-  const chip = document.createElement("span");
-  chip.className = "vb-chip";
-  chip.style.backgroundColor = p.color;
-
-  const name = document.createElement("span");
-  name.className = "vb-participant__name";
-  name.textContent = p.name;
-
-  if (p.isHost) {
-    const host = document.createElement("span");
-    host.className = "vb-participant__host";
-    host.textContent = "(host)";
-    name.append(host);
-  }
-
-  const meta = document.createElement("span");
-  meta.className = "vb-participant__meta";
-  meta.textContent = `${p.score} pts · ${STATE_LABELS[p.presenceState]}`;
-
-  li.append(chip, name, meta);
-  return li;
+export interface ParticipantListOptions {
+  /** Uid of the current viewer — drives the "You" indicator. */
+  uid: UserId;
+  /** Hosts get the −/+ score adjustment controls in every row. */
+  isHost: boolean;
+  /**
+   * Canonical host score adjustment (adjustPlayerScore via main.ts).
+   * Resolves after the Firebase write is acknowledged.
+   */
+  onAdjust(target: ParticipantView, delta: number): Promise<void>;
 }
 
-/** Scoreboard order: presence, score descending, join order, then name. */
-function compare(a: ParticipantView, b: ParticipantView): number {
-  const joinA = a.joinedAt ?? Number.MAX_SAFE_INTEGER;
-  const joinB = b.joinedAt ?? Number.MAX_SAFE_INTEGER;
-  return (
-    STATE_RANK[a.presenceState] - STATE_RANK[b.presenceState] ||
-    b.score - a.score ||
-    joinA - joinB ||
-    a.name.localeCompare(b.name)
-  );
+interface PlayerRowRefs {
+  li: HTMLLIElement;
+  score: HTMLOutputElement;
+  status: HTMLSpanElement | null;
+  scoreWrap: HTMLElement;
+  flashTimer: number | null;
 }
 
-export function renderParticipantList(): {
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+/**
+ * Players panel — the single primary place for player presence, avatar,
+ * display name, current score and (host-only) score adjustment buttons.
+ *
+ * Row layouts:
+ *   host:     [−] [avatar name/status] [score] [+]
+ *   non-host: [avatar name/status] [score] [state]
+ *
+ * The − button is always LEFT of the player name, the + button always RIGHT
+ * of the score. Both are real native buttons inside a
+ * data-disable-buzz-shortcuts wrapper, so Space/Enter on them never triggers
+ * the global buzz shortcut (also excluded by the BUTTON tag guard).
+ *
+ * Updates are applied IN PLACE (no rebuild) so a score change never rebuilds,
+ * never flickers, and only reorders when the documented ranking rule
+ * (presence → score desc → join order → name, see comparePlayers) changes.
+ */
+export function renderParticipantList(opts: ParticipantListOptions): {
   root: HTMLElement;
   setParticipants(list: ParticipantView[]): void;
 } {
-  const root = document.createElement("section");
-  root.className = "vb-participants";
+  const root = el("section", "vb-players-panel");
+  root.setAttribute("aria-labelledby", "players-title");
 
-  const title = document.createElement("h2");
-  title.className = "vb-section-title";
-  title.textContent = "Players";
+  const header = el("header", "vb-panel-header");
+  const title = el("h2", "vb-section-title", "Players");
+  title.id = "players-title";
+  const count = el("span", "vb-player-count", "0 online");
+  header.append(title, count);
 
-  const listEl = document.createElement("ul");
-  listEl.className = "vb-participant-list";
+  const listEl = el("ul", "vb-player-list");
+  root.append(header, listEl);
 
-  root.append(title, listEl);
+  /* ---------- rows, keyed by uid (in-place updates) ---------- */
+  const rows = new Map<UserId, PlayerRowRefs>();
+
+  function makeButton(delta: number, p: ParticipantView): HTMLButtonElement {
+    const plus = delta > 0;
+    const btn = el(
+      "button",
+      `vb-score-adjust ${plus ? "vb-score-adjust--plus" : "vb-score-adjust--minus"}`,
+      plus ? "+" : "−",
+    );
+    btn.type = "button";
+    const label = plus ? `Add 1 point to ${p.name}` : `Remove 1 point from ${p.name}`;
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+    // Belt-and-braces: keyboard-buzz also excludes BUTTON focus and any
+    // ancestor carrying this attribute.
+    btn.setAttribute("data-disable-buzz-shortcuts", "");
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return; // dedup rapid clicks while pending
+      btn.disabled = true;
+      btn.classList.add("vb-score-adjust--pending");
+      void opts
+        .onAdjust(p, delta)
+        .then(() => {
+          // Firebase-confirmed: subtle +1/−1 feedback near the badge.
+          const refs = rows.get(p.uid);
+          if (refs) flashDelta(refs, delta);
+        })
+        .catch(() => undefined) // errors are toasted by the canonical wrapper
+        .finally(() => {
+          btn.disabled = false;
+          btn.classList.remove("vb-score-adjust--pending");
+        });
+    });
+    return btn;
+  }
+
+  function buildIdentity(p: ParticipantView, withStatus: boolean): HTMLElement {
+    const identity = el("div", "vb-player-identity");
+
+    const avatarWrap = el("div", "vb-player-avatar");
+    avatarWrap.style.setProperty("--player-color", p.color);
+    avatarWrap.append(
+      createGeneratedAvatar({ seed: getStableAvatarSeed(p.uid), color: p.color, name: p.name })
+        .root,
+    );
+    identity.append(avatarWrap);
+
+    const text = el("div", "vb-player-text");
+    const name = el("span", "vb-player-name", p.name);
+    name.title = p.name; // full name survives truncation
+    text.append(name);
+    if (p.isHost) {
+      const host = el("span", "vb-player-host", "👑");
+      host.title = "Host";
+      host.setAttribute("aria-label", "(host)");
+      text.append(host);
+    }
+    if (withStatus) {
+      const status = el(
+        "span",
+        `vb-player-status vb-player-status--${p.presenceState}`,
+        p.uid === opts.uid ? "You" : STATE_LABELS[p.presenceState],
+      );
+      text.append(status);
+      identity.append(text);
+      return identity;
+    }
+    identity.append(text);
+    return identity;
+  }
+
+  function buildRow(p: ParticipantView): PlayerRowRefs {
+    const li = el("li", "vb-player-row");
+    li.dataset.uid = p.uid;
+    // Buzz-shortcut suppression wrapper for the whole row.
+    li.setAttribute("data-disable-buzz-shortcuts", "");
+    if (p.presenceState === "offline") li.classList.add("vb-player-row--offline");
+
+    const scoreWrap = el("span", "vb-player-score-wrap");
+    const score = el("output", "vb-player-score", String(p.score));
+    score.dataset.role = "score";
+    scoreWrap.append(score);
+
+    let status: HTMLSpanElement | null = null;
+
+    if (opts.isHost) {
+      li.classList.add("vb-player-row--host");
+      li.append(makeButton(-1, p));
+      li.append(buildIdentity(p, true));
+      li.append(scoreWrap);
+      li.append(makeButton(1, p));
+    } else {
+      li.append(buildIdentity(p, false));
+      li.append(scoreWrap);
+      status = el(
+        "span",
+        `vb-player-status vb-player-status--${p.presenceState}`,
+        p.uid === opts.uid ? "You" : STATE_LABELS[p.presenceState],
+      );
+      li.append(status);
+    }
+
+    listEl.append(li);
+    return { li, score, status, scoreWrap, flashTimer: null };
+  }
+
+  /** Subtle +1 / −1 confirmation near the score badge (visual only). */
+  function flashDelta(refs: PlayerRowRefs, delta: number): void {
+    refs.scoreWrap.querySelector(".vb-score-flash")?.remove();
+    if (refs.flashTimer !== null) window.clearTimeout(refs.flashTimer);
+    const flash = el(
+      "span",
+      `vb-score-flash ${delta > 0 ? "vb-score-flash--plus" : "vb-score-flash--minus"}`,
+      `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`,
+    );
+    flash.setAttribute("aria-hidden", "true");
+    refs.scoreWrap.append(flash);
+    refs.flashTimer = window.setTimeout(() => {
+      flash.remove();
+      refs.flashTimer = null;
+    }, 900);
+  }
+
+  function updateRow(p: ParticipantView, refs: PlayerRowRefs): void {
+    refs.score.textContent = String(p.score);
+    const offline = p.presenceState === "offline";
+    refs.li.classList.toggle("vb-player-row--offline", offline);
+    const label = p.uid === opts.uid ? "You" : STATE_LABELS[p.presenceState];
+    if (refs.status) {
+      refs.status.textContent = label;
+      refs.status.className = `vb-player-status vb-player-status--${p.presenceState}`;
+    } else {
+      // Host row: status lives inside the identity text block.
+      const status = refs.li.querySelector<HTMLSpanElement>(".vb-player-status");
+      if (status) {
+        status.textContent = label;
+        status.className = `vb-player-status vb-player-status--${p.presenceState}`;
+      }
+    }
+  }
 
   return {
     root,
     setParticipants(list: ParticipantView[]) {
       const online = list.filter((p) => p.presenceState === "online").length;
-      title.textContent =
-        list.length === 0 ? "Players" : `Players · ${online}/${list.length} online`;
+      count.textContent =
+        list.length === 0 ? "0 online" : `${online}/${list.length} online`;
 
       if (list.length === 0) {
-        const empty = document.createElement("li");
-        empty.className = "vb-empty";
-        empty.textContent = "Waiting for players…";
+        for (const [, refs] of rows) refs.li.remove();
+        rows.clear();
+        const empty = el("li", "vb-empty", "Waiting for players…");
         listEl.replaceChildren(empty);
         return;
       }
-      listEl.replaceChildren(...[...list].sort(compare).map(row));
+      listEl.querySelector(".vb-empty")?.remove();
+
+      /* Membership changes: create missing rows, drop stale ones. */
+      const present = new Set<UserId>();
+      for (const p of list) {
+        present.add(p.uid);
+        const existing = rows.get(p.uid);
+        if (existing) updateRow(p, existing);
+        else rows.set(p.uid, buildRow(p));
+      }
+      for (const [uid, refs] of rows) {
+        if (!present.has(uid)) {
+          refs.li.remove();
+          rows.delete(uid);
+        }
+      }
+
+      /* In-place refresh of every row (scores, presence) … */
+      for (const p of list) {
+        const refs = rows.get(p.uid);
+        if (refs) updateRow(p, refs);
+      }
+
+      /* … then minimal reorder per the documented ranking rule. Rows only
+         move when the ranking actually changed — never on a rebuild. */
+      const sorted = [...list].sort(comparePlayers);
+      let expected = listEl.firstElementChild;
+      for (const p of sorted) {
+        const li = rows.get(p.uid)?.li;
+        if (!li) continue;
+        if (li !== expected) listEl.insertBefore(li, expected);
+        expected = li.nextElementSibling;
+      }
     },
   };
 }

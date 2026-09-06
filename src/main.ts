@@ -20,9 +20,9 @@ import { attemptBuzz, openNextRound, watchRound } from "./lib/rounds";
 import { resetScores } from "./lib/moderation";
 import {
   adjustPlayerScore,
-  formatScoreChange,
   type ScoreEvent,
 } from "./lib/scoring";
+import { formatScoreAdjustmentToast } from "./lib/player-row";
 import {
   createRoom,
   fetchRoom,
@@ -231,7 +231,44 @@ async function enterRoom(
         navigate("/", true);
         showEntry();
       },
+      onAdjustScore: (targetUid, delta) => applyScoreAdjust(targetUid, delta),
     });
+
+    /* ---------------- Canonical host score adjustment ----------------
+       THE single UI wrapper around adjustPlayerScore (scoring.ts).
+       Used by the Players panel rows, the Player Arena controls and the
+       advanced scoring form — never a second write path. Errors are
+       toasted here so callers only manage their pending state. */
+    async function applyScoreAdjust(
+      targetUid: UserId,
+      delta: number,
+      reason: string | null = null,
+    ): Promise<void> {
+      if (!isHost) return; // UX guard; Firebase rules are the real authority
+      if (!localConnected) {
+        toasts.show("You are offline — score change not applied.", "error");
+        return;
+      }
+      const target = participants.find((p) => p.uid === targetUid);
+      const name = target?.name ?? "player";
+      try {
+        const res = await adjustPlayerScore(code, targetUid, delta, {
+          targetDisplayName: target?.name ?? String(targetUid),
+          changedBy: uid,
+          reason,
+          videoSessionId: latestVideoSessionId,
+          roundNumber: latestRound?.number ?? null,
+          viewerIsHost: isHost,
+        });
+        // Toast only AFTER Firebase confirmed the durable score write.
+        toasts.show(formatScoreAdjustmentToast(delta, name));
+        if (res.eventWriteFailed) {
+          toasts.show("Score applied, but the activity log write failed.", "error");
+        }
+      } catch (err) {
+        toasts.show(describeDbError(err), "error");
+      }
+    }
 
     /* Synced YouTube player — created LAZILY on the first real video id so an
        empty room shows the idle placeholder instead of a black iframe. */
@@ -284,22 +321,8 @@ async function enterRoom(
        exactly one canonical BUZZ button per client. Data flows in later. */
     const arena = createPlayerArena({
       isHost,
-      onAdjust: async (targetUid, delta) => {
-        try {
-          const target = participants.find((p) => p.uid === targetUid);
-          await adjustPlayerScore(code, targetUid, delta, {
-            targetDisplayName: target?.name ?? String(targetUid),
-            changedBy: uid,
-            reason: null,
-            videoSessionId: latestVideoSessionId,
-            roundNumber: latestRound?.number ?? null,
-            viewerIsHost: isHost,
-          });
-          toasts.show(formatScoreChange(delta, target?.name ?? "player"));
-        } catch (err) {
-          toasts.show(describeDbError(err), "error");
-        }
-      },
+      // Same canonical wrapper as the Players panel — no second write path.
+      onAdjust: (targetUid, delta) => applyScoreAdjust(targetUid, delta),
     });
     view.arenaSlot.append(arena.root);
 
@@ -473,37 +496,22 @@ async function enterRoom(
       view.sidebar.insertBefore(hostPanel.root, view.sidebar.querySelector(".vb-settings-drawer"));
     }
 
-    /* ---------------- Manual scoring (host) + score feed (everyone) ------- */
+    /* ---------------- Advanced scoring (host, in settings drawer) -------- */
     // Tracks the CURRENT playback session so audit events stay contextual.
     let latestVideoSessionId: number | null = null;
 
+    /* Compact audit feed — hidden by default inside the settings drawer.
+       Renders the read-only log only; /scoreEvents persistence stays intact. */
     const scoreFeed = createScoreFeed();
-    view.sidebar.insertBefore(scoreFeed.root, view.sidebar.querySelector(".vb-settings-drawer"));
+    view.settingsContent.append(scoreFeed.root);
 
     const scoring = isHost
       ? createManualScoring({
-          onAdjust: async (target, delta, reason) => {
-            try {
-              const res = await adjustPlayerScore(code, target.uid, delta, {
-                targetDisplayName: target.name,
-                changedBy: uid,
-                reason,
-                videoSessionId: latestVideoSessionId,
-                roundNumber: latestRound?.number ?? null,
-                viewerIsHost: isHost,
-              });
-              // Toast only AFTER Firebase confirmed the durable score write.
-              toasts.show(formatScoreChange(delta, target.name));
-              if (res.eventWriteFailed) {
-                toasts.show("Score applied, but the activity log write failed.", "error");
-              }
-            } catch (err) {
-              toasts.show(describeDbError(err), "error");
-            }
-          },
+          // Same canonical wrapper as the player rows — no second path.
+          onAdjust: (target, delta, reason) => applyScoreAdjust(target.uid, delta, reason),
         })
       : null;
-    if (scoring) view.sidebar.insertBefore(scoring.root, view.sidebar.querySelector(".vb-settings-drawer"));
+    if (scoring) view.settingsContent.append(scoring.root);
 
     /* Diagnostics (collapsible, read-only) */
     let lastSyncedPos: number | null = null;

@@ -1,6 +1,9 @@
 :root {
   font-family: "Quicksand", system-ui, Avenir, Helvetica, Arial, sans-serif;
-  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 html,
@@ -14,10 +17,10 @@ body {
   margin: 0;
   min-height: 100dvh;
   display: block;
-  background-color: #eef2f9;
-  background-image: radial-gradient(#d5dde9 1.5px, transparent 1.5px);
+  background-color: var(--vb-canvas);
+  background-image: radial-gradient(var(--vb-dot) 1.5px, transparent 1.5px);
   background-size: 24px 24px;
-  color: #272935;
+  color: var(--vb-text);
   overscroll-behavior: none;
 }
 
