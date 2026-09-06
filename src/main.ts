@@ -343,7 +343,7 @@ async function enterRoom(
       onBuzz: () => doBuzz(),
       onHostResume: () => doResume(),
     });
-    stage.mountBuzzPanel(buzzPanel.root, buzzPanel.statusRoot, buzzPanel.feedbackRoot);
+    stage.mountBuzzPanel(buzzPanel.root, buzzPanel.feedbackRoot);
 
     function doBuzz(): void {
       // Unlock audio synchronously within the user gesture before the RTDB transaction.
@@ -671,12 +671,8 @@ async function enterRoom(
       videoEmptyState.hidden = !!activeVideoId;
     }
 
-    const resolveWinnerColor = (): void => {
-      const winnerId = latestRound?.buzz?.playerId;
-      buzzPanel.setWinnerColor(
-        winnerId ? participants.find((p) => p.uid === winnerId)?.color ?? null : null,
-      );
-    };
+    // Winner identity/color rendering lives entirely in the buzz popup
+    // (.vb-buzz-popup-region) — the Buzzer zone carries no winner metadata.
 
     // Canonical live presence: auth -> /.info/connected -> onDisconnect-FIRST
     // -> online write -> 20s lastSeenAt heartbeat (see presenceService).
@@ -696,7 +692,6 @@ async function enterRoom(
           list.filter((p) => p.presenceState === "online").length,
           list.length,
         );
-        resolveWinnerColor();
         stage.setRoomData(list, latestRound, uid);
         scoring?.setParticipants(list);
         // keep sound panel's selector in sync if profile changed remotely for self
@@ -723,7 +718,6 @@ async function enterRoom(
     });
     const unOffset = watchServerTimeOffset((ms) => {
       serverOffsetMs = ms;
-      buzzPanel.setServerOffset(ms);
       diagnostics.setServerOffset(ms);
     });
     diagnostics.setAuthUid(uid);
@@ -810,14 +804,64 @@ async function enterRoom(
     let activeVideoId = videoId;
     let activeSessionFingerprint = `${videoId}:0`;
 
+    /* ---------------- DEV-only buzzer geometry assertion ----------------
+       The Buzzer zone must be geometrically stable across all round states.
+       Measures .vb-mechanical-buzzer with getBoundingClientRect and warns
+       when width/height/x/y drift by more than 1px (viewport-size changes
+       are exempt). Also asserts no metadata element is mounted inside the
+       buzzer zone and the popup region never sits inside the video shell.
+       Compiled out in production. */
+    let lastBuzzerRect: { w: number; h: number; x: number; y: number; vw: number; vh: number } | null = null;
+    function checkBuzzerGeometry(trigger: string): void {
+      if (!import.meta.env.DEV) return;
+      const btn = document.querySelector<HTMLElement>(".vb-mechanical-buzzer");
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      if (lastBuzzerRect && lastBuzzerRect.vw === vw && lastBuzzerRect.vh === vh) {
+        const drift = [
+          Math.abs(r.width - lastBuzzerRect.w),
+          Math.abs(r.height - lastBuzzerRect.h),
+          Math.abs(r.x - lastBuzzerRect.x),
+          Math.abs(r.y - lastBuzzerRect.y),
+        ];
+        if (drift.some((d) => d > 1)) {
+          console.error(
+            `[vb-layout] BUZZER GEOMETRY SHIFT at ${trigger}: ` +
+              `was ${lastBuzzerRect.w.toFixed(1)}×${lastBuzzerRect.h.toFixed(1)} @(${lastBuzzerRect.x.toFixed(1)},${lastBuzzerRect.y.toFixed(1)}) ` +
+              `now ${r.width.toFixed(1)}×${r.height.toFixed(1)} @(${r.x.toFixed(1)},${r.y.toFixed(1)})`,
+          );
+        }
+      }
+      lastBuzzerRect = { w: r.width, h: r.height, x: r.x, y: r.y, vw, vh };
+
+      // Structural invariants: no metadata inside the buzzer zone; popup
+      // region is a sibling of (never inside) the video shell.
+      const zone = btn.closest<HTMLElement>(".vb-mechanical-buzzer-zone");
+      for (const sel of [".vb-winner-card", ".vb-paused-pill", ".vb-buzz-round-pill"]) {
+        if (zone?.querySelector(sel)) {
+          console.error(`[vb-layout] metadata element ${sel} mounted inside the buzzer zone`);
+        }
+      }
+      const popupRegion = document.querySelector<HTMLElement>(".vb-buzz-popup-region");
+      if (popupRegion?.closest(".vb-video-shell")) {
+        console.error("[vb-layout] .vb-buzz-popup-region is inside .vb-video-shell");
+      }
+    }
+
     const unRound = watchRound(code, (round) => {
       latestRound = round;
       buzzPanel.setRound(round);
       hostPanel?.setRound(round);
       diagnostics.setRound(round);
       view.setRoundStatus(round.state);
-      resolveWinnerColor();
       stage.setRoomData(participants, round, uid);
+
+      // DEV-only layout-stability assertion: the mechanical buzzer must keep
+      // the same bounding rectangle (±1px) across EVERY round transition
+      // (buzz, host resume, next round, cooldown, reconnect snapshot).
+      checkBuzzerGeometry(`round:${round.state}#${round.number}`);
 
       // Global cooldown expiry (host only): normalize the round back to
       // 'open' once the SERVER-anchored window elapses. Derived from this
@@ -867,6 +911,7 @@ async function enterRoom(
         const winnerView = participants.find((p) => p.uid === round.buzz!.playerId);
         buzzPopup.show({
           buzzEventKey: buzzKey,
+          roundNumber: round.number,
           winnerId: round.buzz.playerId,
           winnerName: round.buzz.displayName,
           winnerColor: winnerView?.color ?? "#64748b",
@@ -874,6 +919,9 @@ async function enterRoom(
           isHost,
           videoPaused: true,
           animate: !renderStatic,
+          buzzedAt: typeof round.buzz.buzzedAt === "number" ? round.buzz.buzzedAt : null,
+          videoTime: typeof round.buzz.videoTime === "number" ? round.buzz.videoTime : null,
+          serverOffsetMs,
         });
         if (!renderStatic) {
           const winner = participants.find((p) => p.uid === round.buzz!.playerId);

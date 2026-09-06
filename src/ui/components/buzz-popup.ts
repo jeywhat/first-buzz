@@ -1,3 +1,4 @@
+import { formatTime } from "./youtube-player";
 import type { UserId } from "../../types/common";
 
 export interface BuzzPopupActions {
@@ -11,6 +12,8 @@ export interface BuzzPopupActions {
 
 export interface BuzzPopupInfo {
   buzzEventKey: string;
+  /** Round number of the confirmed buzz — rendered as ROUND #X · BUZZED. */
+  roundNumber: number;
   winnerId: UserId;
   winnerName: string;
   winnerColor: string;
@@ -20,6 +23,12 @@ export interface BuzzPopupInfo {
   videoPaused: boolean;
   /** False for late joiners / refresh / stale sessions → static render. */
   animate: boolean;
+  /** Server-timestamp ms of the buzz (relative-time meta). Null-safe. */
+  buzzedAt: number | null;
+  /** Video position (seconds) captured at buzz time (VIDEO mm:ss meta). */
+  videoTime: number | null;
+  /** Current server-clock offset for the relative-time meta. */
+  serverOffsetMs?: number;
 }
 
 export interface BuzzPopupHandles {
@@ -38,7 +47,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
   text?: string,
 ): HTMLElementTagNameMap[K] {
   const n = document.createElement(tag);
-  if (className) n.className = className;
+  if (className) n.className = n.className ? `${n.className} ${className}` : className;
   if (text !== undefined) n.textContent = text;
   return n;
 }
@@ -59,9 +68,36 @@ export function createBuzzPopup(): BuzzPopupHandles {
   let pendingCard: HTMLElement | null = null;
   /** One-shot entrance animation per confirmed event key. */
   const animatedKeys = new Set<string>();
+  /** Relative-time meta state for the 1s ticker while a card is visible. */
+  let metaAnchor: { buzzedAt: number; serverOffsetMs: number } | null = null;
+  let metaTime: HTMLElement | null = null;
+  let metaTicker: number | null = null;
 
   function devLog(...args: unknown[]): void {
     if (import.meta.env.DEV) console.debug("[buzz-popup]", ...args);
+  }
+
+  function updateMetaTime(): void {
+    if (!metaAnchor || !metaTime) return;
+    const elapsedSec = Math.max(
+      0,
+      Math.round((Date.now() + metaAnchor.serverOffsetMs - metaAnchor.buzzedAt) / 1000),
+    );
+    metaTime.textContent = elapsedSec < 2 ? "just now" : `${elapsedSec}s ago`;
+  }
+
+  function startMetaTicker(): void {
+    if (metaTicker !== null) return;
+    metaTicker = window.setInterval(updateMetaTime, 1000);
+  }
+
+  function stopMetaTicker(): void {
+    if (metaTicker !== null) {
+      window.clearInterval(metaTicker);
+      metaTicker = null;
+    }
+    metaAnchor = null;
+    metaTime = null;
   }
 
   /* DEV-only structural guards (historical overlay bug regression). */
@@ -91,6 +127,7 @@ export function createBuzzPopup(): BuzzPopupHandles {
     if (!card && !pendingCard) return;
     card = null;
     pendingCard = null;
+    stopMetaTicker();
     root.replaceChildren();
     devLog("hidden:", cause);
   }
@@ -105,11 +142,22 @@ export function createBuzzPopup(): BuzzPopupHandles {
 
     const wasSameKey = card?.dataset.eventKey === info.buzzEventKey;
     card?.remove();
+    stopMetaTicker();
     card = el("div", "vb-buzz-popup");
     card.dataset.eventKey = info.buzzEventKey;
+    card.dataset.state = "buzzed";
     card.style.setProperty("--winner-color", info.winnerColor);
     if (info.isWinnerYou) card.classList.add("vb-buzz-popup--you");
     if (animate) card.classList.add("vb-buzz-popup--enter");
+
+    /* ---- header: round badge + playback badge (ALL round metadata lives
+       here — the Buzzer zone carries none of it) ---- */
+    const header = el("div", "vb-buzz-popup__header");
+    header.setAttribute("aria-hidden", "true"); // headline below carries the info
+    header.append(el("span", "vb-round-badge", `ROUND #${info.roundNumber} · BUZZED`));
+    if (info.videoPaused) header.append(el("span", "vb-paused-badge", "VIDEO PAUSED"));
+
+    /* ---- winner row ---- */
 
     // Avatar initials — text always carries the identity (color is accent).
     const avatar = el("span", "vb-buzz-popup__avatar");
@@ -128,20 +176,42 @@ export function createBuzzPopup(): BuzzPopupHandles {
     const headline = el("p", "vb-buzz-popup__headline");
     const name = el("strong", "vb-buzz-popup__name", info.winnerName);
     headline.append(name, document.createTextNode(" buzzed first"));
-    const subline = el(
-      "p",
-      "vb-buzz-popup__subline",
-      info.isWinnerYou ? "You buzzed first!" : info.videoPaused ? "Video paused" : "",
-    );
+    const subline = el("p", "vb-buzz-popup__subline", info.isWinnerYou ? "You buzzed first!" : "");
     textWrap.append(headline, subline);
 
-    card.append(avatar, textWrap);
+    // Winner row identity is fully carried by the name; the avatar is décor.
+    const winnerRow = el("div", "vb-buzz-popup__winner");
+    winnerRow.append(avatar, textWrap);
+
+    // Relative time + video position meta (video-position is stable text;
+    // relative time refreshes once per second while the popup is visible).
+    const meta = el("div", "vb-buzz-popup__meta");
+    meta.setAttribute("aria-hidden", "true");
+    if (info.buzzedAt != null) {
+      metaTime = el("span", "vb-buzz-popup__meta-time");
+      metaAnchor = {
+        buzzedAt: info.buzzedAt,
+        serverOffsetMs: info.serverOffsetMs ?? 0,
+      };
+      updateMetaTime();
+      startMetaTicker();
+      meta.append(metaTime);
+    }
+    if (info.videoTime != null) {
+      meta.append(el("span", "vb-buzz-popup__meta-video", `VIDEO ${formatTime(info.videoTime)}`));
+    }
+
+    const winnerWrap = el("div", "vb-buzz-popup__body");
+    winnerWrap.append(winnerRow);
+    if (meta.childElementCount > 0) winnerWrap.append(meta);
+
+    card.append(header, winnerWrap);
 
     if (info.isHost && actions) {
       const bar = el("div", "vb-buzz-popup__actions");
       bar.setAttribute("data-disable-buzz-shortcuts", "");
       // ONE button: resume + reopen the round. Popup closes itself when the
-      // authoritative round flips to "open" (watchRound → hide).
+      // authoritative round flips to "cooldown"/"open" (watchRound → hide).
       const resume = el("button", "vb-btn vb-btn--small vb-btn--success", "▶ Resume video");
       resume.type = "button";
       resume.setAttribute(

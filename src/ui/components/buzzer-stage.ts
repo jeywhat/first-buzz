@@ -2,24 +2,25 @@ import type { ParticipantView, RoundData, UserId } from "../../types";
 
 export interface BuzzerStageHandles {
   root: HTMLElement;
-  /** Mounts the ONE canonical mechanical buzzer: core → zone, status → strip, feedback → live region. */
-  mountBuzzPanel(core: HTMLElement, status: HTMLElement, feedback: HTMLElement): void;
+  /** Mounts the ONE canonical mechanical buzzer: core → zone, feedback → live region. */
+  mountBuzzPanel(core: HTMLElement, feedback: HTMLElement): void;
   setRoomData(players: ParticipantView[], round: RoundData | null, currentUserId: UserId): void;
   dispose(): void;
 }
 
 /**
  * Buzzer stage — the former Player Arena zone, now dedicated entirely to the
- * large mechanical buzzer. No podiums, no orbit, no player stations: the
- * complete Players list, presence and host score controls live in the
- * Players panel below; the authoritative winner popup stays below the video.
+ * large mechanical buzzer. GEOMETRIC STABILITY: the stage renders exactly
+ * three rows — header, buzzer zone, short live status — with NOTHING
+ * conditional between them. Round metadata (round pill, VIDEO PAUSED, winner
+ * name/time) lives exclusively in the .vb-buzz-popup-region below the video,
+ * so the buzzer keeps the same position and size in every round state.
  *
  * DOM:
  *   section.vb-buzzer-stage
  *     header.vb-buzzer-stage-header   — title + compact online badge
- *     .vb-buzzer-status-stack         — round pill / VIDEO PAUSED / winner
  *     .vb-mechanical-buzzer-zone      — the ONE canonical buzzer button
- *     .vb-buzzer-status               — aria-live state line
+ *     .vb-buzzer-status               — aria-live short local status line
  */
 export function createBuzzerStage(): BuzzerStageHandles {
   const root = document.createElement("section");
@@ -42,10 +43,6 @@ export function createBuzzerStage(): BuzzerStageHandles {
 
   header.append(title, badge);
 
-  /* ---------- status strip (round pill / paused / winner) ---------- */
-  const statusStack = document.createElement("div");
-  statusStack.className = "vb-buzzer-status-stack";
-
   /* ---------- buzzer zone ---------- */
   const zone = document.createElement("div");
   zone.className = "vb-mechanical-buzzer-zone";
@@ -57,13 +54,12 @@ export function createBuzzerStage(): BuzzerStageHandles {
   liveStatus.setAttribute("aria-live", "polite");
   liveStatus.setAttribute("aria-atomic", "true");
 
-  root.append(header, statusStack, zone, liveStatus);
+  root.append(header, zone, liveStatus);
 
   return {
     root,
-    mountBuzzPanel(core, status, feedback) {
+    mountBuzzPanel(core, feedback) {
       zone.append(core);
-      statusStack.append(status);
       liveStatus.append(feedback);
     },
     setRoomData(players, round, currentUserId) {

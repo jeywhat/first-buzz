@@ -257,13 +257,14 @@ describe("host resume & open buzz", () => {
     expect(onHostResume).not.toHaveBeenCalled();
   });
 
-  it("keeps the winner card and VIDEO PAUSED pill visible during resume", () => {
+  it("mounts NO round metadata inside the buzzer (the popup owns it)", () => {
     const { panel } = mountHost(vi.fn());
-    // Winner card + paused pill live in the status strip root.
-    const winnerCard = panel.statusRoot.querySelector<HTMLElement>(".vb-winner-card")!;
-    const pausedPill = panel.statusRoot.querySelector<HTMLElement>(".vb-paused-pill")!;
-    expect(winnerCard.hidden).toBe(false);
-    expect(pausedPill.hidden).toBe(false);
+    // Round pill, VIDEO PAUSED pill and winner card were moved to the
+    // .vb-buzz-popup-region — the buzzer renders only button + status line.
+    for (const sel of [".vb-winner-card", ".vb-paused-pill", ".vb-buzz-round-pill"]) {
+      expect(panel.root.querySelector(sel)).toBeNull();
+    }
+    expect(panel.root.querySelectorAll("button").length).toBe(1);
   });
 });
 

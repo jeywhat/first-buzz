@@ -23,7 +23,7 @@ function mountWithPanel() {
   const onBuzz = () => undefined;
   const stage = createBuzzerStage();
   const panel = createBuzzPanel({ onBuzz });
-  stage.mountBuzzPanel(panel.root, panel.statusRoot, panel.feedbackRoot);
+  stage.mountBuzzPanel(panel.root, panel.feedbackRoot);
   document.body.append(stage.root);
   return { stage, panel };
 }
@@ -73,6 +73,40 @@ describe("buzzer stage structure", () => {
       "u1",
     );
     expect(stage.root.querySelector(".vb-buzzer-online")!.textContent).toBe("1 ONLINE");
+  });
+
+  it("has NO conditional metadata strip — geometry stays stable across states", () => {
+    const { stage, panel } = mountWithPanel();
+    // The old .vb-buzzer-status-stack (round pill / VIDEO PAUSED / winner
+    // card) caused the buzzed-state layout shift; it must not exist.
+    expect(stage.root.querySelector(".vb-buzzer-status-stack")).toBeNull();
+    for (const sel of [".vb-winner-card", ".vb-paused-pill", ".vb-buzz-round-pill"]) {
+      expect(stage.root.querySelector(sel)).toBeNull();
+    }
+    // Exactly three stable rows: header, zone, live status.
+    const rows = Array.from(stage.root.children).map((c) => (c as HTMLElement).className);
+    expect(rows).toEqual([
+      "vb-buzzer-stage-header",
+      "vb-mechanical-buzzer-zone",
+      "vb-buzzer-status",
+    ]);
+    // Zone holds exactly one interactive element — the buzzer button.
+    const zone = stage.root.querySelector<HTMLElement>(".vb-mechanical-buzzer-zone")!;
+    expect(zone.querySelectorAll("button").length).toBe(1);
+    // A buzzed round must not add anything to the stage.
+    panel.setRound({
+      number: 8,
+      state: "buzzed",
+      buzz: {
+        playerId: "u2",
+        displayName: "Bob",
+        buzzedAt: Date.now(),
+        videoTime: 3,
+        roundNumber: 8,
+      },
+    });
+    expect(stage.root.children.length).toBe(3);
+    expect(zone.querySelectorAll("button").length).toBe(1);
   });
 
   it("the stage live region carries the buzz status line", () => {
