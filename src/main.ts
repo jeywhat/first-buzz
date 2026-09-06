@@ -369,6 +369,7 @@ async function enterRoom(
         // Additive observers — the desktop sync flow itself is unchanged.
         onPlayerStateChange: (ps) => localMedia.handleYouTubePlayerStateChange(ps),
         onAutoplayBlocked: () => localMedia.handleYouTubeAutoplayBlocked(),
+        onAutoplayAttempt: () => localMedia.noteAutoplayAttempt(),
       });
       // The player section is position:absolute within the video shell, so
       // DOM order is irrelevant. NEVER insertBefore the popup region here —

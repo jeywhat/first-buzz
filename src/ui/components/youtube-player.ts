@@ -118,6 +118,12 @@ export function createYoutubePlayer(
     onPlayerStateChange?(playerState: number): void;
     /** Fired ONCE when an authoritative play request did not start playback. */
     onAutoplayBlocked?(): void;
+    /**
+     * Fired just before an authoritative playVideo() attempt — restricted
+     * clients may use it to show the local gate IMMEDIATELY when the page
+     * has no prior user activation (known gesture requirement).
+     */
+    onAutoplayAttempt?(): void;
   },
 ): YoutubePlayerHandles {
   /* ---------- DOM ---------- */
@@ -303,28 +309,61 @@ export function createYoutubePlayer(
      After an authoritative play request, a SINGLE one-shot check verifies
      that local playback actually began. Desktop Chrome (playing normally)
      clears it via onStateChange long before it fires; mobile browsers that
-     silently block playVideo() surface exactly one onAutoplayBlocked(). */
+     silently block playVideo() surface exactly one onAutoplayBlocked().
+     CRITICAL: BUFFERING is NOT confirmed playback — a mobile-blocked
+     attempt stalls in BUFFERING forever (frozen thumbnail/black frame),
+     so the check only accepts PLAYING and extends (max 2×2s) while the
+     position actually advances. */
   let autoplayCheckTimer = 0;
   let autoplayCheckSeq = -1;
   let lastAuthPlaying = false;
+  let blockCheckExtends = 0;
+  let blockCheckPosition = -1;
 
   const isPlayingState = (ps: number): boolean =>
     ps === YT.PlayerState.PLAYING || ps === YT.PlayerState.BUFFERING;
 
-  function armAutoplayBlockCheck(seq: number): void {
+  function armAutoplayBlockCheck(seq: number, delayMs = 2000): void {
+    if (autoplayCheckSeq !== seq) {
+      // New command: reset the stall-extension bookkeeping.
+      blockCheckExtends = 0;
+      blockCheckPosition = -1;
+    }
     window.clearTimeout(autoplayCheckTimer);
     autoplayCheckSeq = seq;
     autoplayCheckTimer = window.setTimeout(() => {
       if (disposed || !player || !ready) return;
       if (autoplayCheckSeq !== seq) return; // superseded by a newer command
       if (!lastAuthPlaying) return; // authoritative state moved on (e.g. buzz pause)
-      if (isPlayingState(player.getPlayerState())) return; // playing fine
+      const ps = player.getPlayerState();
+      if (ps === YT.PlayerState.PLAYING) {
+        blockCheckExtends = 0;
+        blockCheckPosition = -1;
+        return; // confirmed local playback
+      }
+      const pos = safeCurrentTime() ?? -1;
+      const advanced = blockCheckPosition >= 0 && pos > blockCheckPosition + 0.25;
+      blockCheckPosition = pos;
+      if (
+        ps === YT.PlayerState.BUFFERING &&
+        blockCheckExtends < 2 &&
+        (blockCheckExtends === 0 || advanced)
+      ) {
+        // Still buffering: give genuinely slow networks up to 2 extensions,
+        // but a stalled BUFFERING (position frozen) is a block.
+        blockCheckExtends++;
+        armAutoplayBlockCheck(seq);
+        return;
+      }
+      // UNSTARTED / CUED / PAUSED / ENDED, or stalled BUFFERING → blocked.
       opts.onAutoplayBlocked?.();
-    }, 2000);
+    }, delayMs);
   }
 
   function clearAutoplayBlockCheck(): void {
     window.clearTimeout(autoplayCheckTimer);
+    blockCheckExtends = 0;
+    blockCheckPosition = -1;
   }
 
   /* DEV-only command diagnostics (never in production bundles' runtime). */
@@ -515,6 +554,7 @@ export function createYoutubePlayer(
         // only when the authoritative snapshot says playing (Launch and play).
         player.cueVideoById(state.videoId, 0);
         if (state.playing) {
+          opts.onAutoplayAttempt?.();
           player.playVideo();
           armAutoplayBlockCheck(state.seq);
         }
@@ -557,6 +597,7 @@ export function createYoutubePlayer(
       ps !== YT.PlayerState.PLAYING &&
       ps !== YT.PlayerState.BUFFERING
     ) {
+      opts.onAutoplayAttempt?.();
       player.playVideo();
       armAutoplayBlockCheck(state.seq);
     }
@@ -618,8 +659,10 @@ export function createYoutubePlayer(
           debugPlayer("error", frame, player, { ytErrorCode: event.data });
         },
         onStateChange: (event) => {
-          // Local playback confirmed → the one-shot block check is moot.
-          if (isPlayingState(event.data)) clearAutoplayBlockCheck();
+          // CONFIRMED local playback → the one-shot block check is moot.
+          // (BUFFERING alone must NOT clear it: a mobile-blocked attempt
+          // stalls in BUFFERING forever — that stall IS the block signal.)
+          if (event.data === YT.PlayerState.PLAYING) clearAutoplayBlockCheck();
           // Additive observer for the local media compatibility layer.
           opts.onPlayerStateChange?.(event.data);
           syncControlsFromPlayer();
@@ -707,6 +750,7 @@ export function createYoutubePlayer(
       }
       const ps = player.getPlayerState();
       if (unlockState.playing && !isPlayingState(ps)) {
+        opts.onAutoplayAttempt?.();
         player.playVideo();
         armAutoplayBlockCheck(unlockState.seq);
       } else if (!unlockState.playing && isPlayingState(ps)) {

@@ -15,6 +15,7 @@ const desktopEnv: LocalMediaEnv = {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
   maxTouchPoints: 0,
   coarsePointer: false,
+  hasBeenActive: true,
 };
 
 const iphoneEnv: LocalMediaEnv = {
@@ -22,6 +23,7 @@ const iphoneEnv: LocalMediaEnv = {
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1",
   maxTouchPoints: 5,
   coarsePointer: true,
+  hasBeenActive: false,
 };
 
 const androidEnv: LocalMediaEnv = {
@@ -29,6 +31,7 @@ const androidEnv: LocalMediaEnv = {
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36",
   maxTouchPoints: 5,
   coarsePointer: true,
+  hasBeenActive: false,
 };
 
 const iPadOsEnv: LocalMediaEnv = {
@@ -37,6 +40,7 @@ const iPadOsEnv: LocalMediaEnv = {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/604.1",
   maxTouchPoints: 5,
   coarsePointer: true,
+  hasBeenActive: false,
 };
 
 /** Small viewport alone must NOT be a signal — env has no viewport field. */
@@ -260,6 +264,62 @@ describe("audio/video independence (restricted)", () => {
     expect(s.video).toBe("paused");
     expect(s.localUnlockVisible).toBe(false);
     expect(s.audio).toBe("ready");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Known gesture requirement (immediate gate)                         */
+/* ------------------------------------------------------------------ */
+
+describe("noteAutoplayAttempt (known gesture requirement)", () => {
+  it("gates IMMEDIATELY for a restricted client with no prior activation", () => {
+    const { svc } = makeService(iphoneEnv);
+    svc.handleAuthoritativePlayback(playing());
+    svc.noteAutoplayAttempt(); // fires right before the local playVideo()
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.localUnlockVisible).toBe(true);
+    expect(s.video).toBe("blocked-needs-gesture");
+    expect(s.lastBlockReason).toBe("unknown");
+  });
+
+  it("does NOT gate a restricted client that already had a user activation", () => {
+    const { svc } = makeService({ ...iphoneEnv, hasBeenActive: true });
+    svc.handleAuthoritativePlayback(playing());
+    svc.noteAutoplayAttempt();
+    expect(svc.getLocalMediaCompatibilityState().localUnlockVisible).toBe(false);
+  });
+
+  it("never gates desktop clients via the attempt signal", () => {
+    const { svc } = makeService(desktopEnv);
+    svc.handleAuthoritativePlayback(playing());
+    svc.noteAutoplayAttempt();
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.localUnlockVisible).toBe(false);
+    expect(s.video).toBe("unknown");
+  });
+
+  it("the gate closes instantly if playback starts anyway", () => {
+    const { svc } = makeService(iphoneEnv);
+    svc.handleAuthoritativePlayback(playing());
+    svc.noteAutoplayAttempt();
+    expect(svc.getLocalMediaCompatibilityState().localUnlockVisible).toBe(true);
+    svc.handleYouTubePlayerStateChange(1); // PLAYING
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.localUnlockVisible).toBe(false);
+    expect(s.video).toBe("playing");
+  });
+
+  it("later playing snapshots never downgrade an observed block", () => {
+    const { svc } = makeService(iphoneEnv);
+    svc.handleAuthoritativePlayback(playing());
+    svc.noteAutoplayAttempt();
+    expect(svc.getLocalMediaCompatibilityState().video).toBe("blocked-needs-gesture");
+    // Heartbeats keep arriving with new seqs while the gate is up.
+    svc.handleAuthoritativePlayback(playing(8));
+    svc.handleAuthoritativePlayback(playing(9));
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.video).toBe("blocked-needs-gesture");
+    expect(s.localUnlockVisible).toBe(true);
   });
 });
 

@@ -81,6 +81,8 @@ export interface LocalMediaEnv {
   userAgent: string;
   maxTouchPoints: number;
   coarsePointer: boolean;
+  /** navigator.userActivation.hasBeenActive (null = API unavailable). */
+  hasBeenActive: boolean | null;
 }
 
 export function defaultLocalMediaEnv(): LocalMediaEnv {
@@ -91,6 +93,10 @@ export function defaultLocalMediaEnv(): LocalMediaEnv {
       typeof window !== "undefined" &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(pointer: coarse)").matches,
+    hasBeenActive:
+      typeof navigator !== "undefined" && "userActivation" in navigator
+        ? navigator.userActivation.hasBeenActive
+        : null,
   };
 }
 
@@ -135,6 +141,14 @@ export interface LocalMediaAdapter {
 export interface LocalMediaCompatibilityService {
   handleAuthoritativePlayback(playback: Readonly<AuthoritativePlaybackState>): void;
   handleYouTubeAutoplayBlocked(): void;
+  /**
+   * Fired just before the local player issues an authoritative playVideo().
+   * For restricted clients WITHOUT any prior page activation, this is a
+   * KNOWN gesture requirement (every major mobile browser blocks audible
+   * programmatic playback) → the local gate shows immediately and closes
+   * instantly if playback starts anyway.
+   */
+  noteAutoplayAttempt(): void;
   handleYouTubePlayerStateChange(playerState: number): void;
   noteAudioStatus(audioStatus: string): void;
   unlockLocalMediaFromTrustedGesture(): Promise<LocalMediaUnlockResult>;
@@ -224,8 +238,9 @@ export function createLocalMediaCompatibilityService(
     if (!playback.videoId) return; // idle room — nothing to play locally
     if (playback.playing) {
       // The existing player path already attempted local playback once.
-      // Success/failure arrives via state-change / blocked events.
-      setVideoState("autoplay-attempting");
+      // Success/failure arrives via state-change / blocked events. Never
+      // downgrade an already-observed block back to "attempting".
+      if (video !== "blocked-needs-gesture") setVideoState("autoplay-attempting");
     } else {
       setVideoState("paused");
       // Global pause: an unlock gate would be wrong here.
@@ -243,6 +258,18 @@ export function createLocalMediaCompatibilityService(
     }
     setVideoState("blocked-needs-gesture");
     showUnlock("youtube-autoplay-blocked");
+  }
+
+  function noteAutoplayAttempt(): void {
+    if (mode !== "restricted-media") return; // desktop: transparent
+    // KNOWN gesture requirement: with NO prior user activation on the page,
+    // every major mobile browser blocks audible programmatic playback —
+    // gate immediately instead of waiting for the outcome check. The gate
+    // closes instantly if playback starts anyway (PLAYING event).
+    if (env.hasBeenActive === false) {
+      setVideoState("blocked-needs-gesture");
+      showUnlock("unknown");
+    }
   }
 
   function handleYouTubePlayerStateChange(playerState: number): void {
@@ -336,6 +363,7 @@ export function createLocalMediaCompatibilityService(
   return {
     handleAuthoritativePlayback,
     handleYouTubeAutoplayBlocked,
+    noteAutoplayAttempt,
     handleYouTubePlayerStateChange,
     noteAudioStatus,
     unlockLocalMediaFromTrustedGesture,
