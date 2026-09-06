@@ -15,7 +15,7 @@ export interface RoomViewHandles {
   videoColumn: HTMLElement;
   /** Buzz popup region AFTER the shell — normal flow sibling, never an overlay. */
   buzzPopupColumn: HTMLElement;
-  /** Player Arena slot — first card of the game sidebar (hosts the buzzer). */
+  /** Buzzer stage slot — first card of the game sidebar (mechanical buzzer). */
   arenaSlot: HTMLElement;
   /** Content node of the collapsed settings/diagnostics drawer. */
   settingsContent: HTMLElement;

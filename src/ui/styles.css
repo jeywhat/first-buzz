@@ -983,14 +983,14 @@ button {
 }
 
 /* ============================================================
-   Player Arena — circular orbit + central buzzer
+   Buzzer stage (former Player Arena) + mechanical buzzer
    ============================================================ */
 
-.vb-arena-slot {
+.vb-buzzer-slot {
   min-width: 0;
 }
 
-.vb-player-arena {
+.vb-buzzer-stage {
   background: var(--vb-card);
   border: var(--vb-outline);
   border-radius: var(--vb-card-radius);
@@ -1001,33 +1001,16 @@ button {
   gap: 10px;
 }
 
-.vb-arena-header {
+.vb-buzzer-stage-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--vb-underline);
-  flex-wrap: wrap;
 }
 
-.vb-arena-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.vb-arena-live-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--vb-secondary);
-  border: 2px solid var(--vb-ink);
-  flex: none;
-}
-
-.vb-arena-title {
+.vb-buzzer-stage-title {
   margin: 0;
   font-size: 1rem;
   font-weight: 900;
@@ -1035,14 +1018,7 @@ button {
   letter-spacing: 0.05em;
 }
 
-.vb-arena-header-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.vb-arena-badge {
+.vb-buzzer-online {
   font-family: var(--vb-font-display);
   font-size: 0.66rem;
   font-weight: 900;
@@ -1051,581 +1027,225 @@ button {
   border: 2px solid var(--vb-ink);
   padding: 3px 9px;
   white-space: nowrap;
-  background: var(--vb-muted);
-  color: var(--vb-text);
-}
-
-.vb-arena-badge--host {
-  background: var(--vb-tertiary);
-}
-
-.vb-arena-badge--online {
   background: var(--vb-mint-bg);
-}
-
-/* Orbit stage - bounded square, container for cqw-based sizing.
-   Z-INDEX MODEL (documented):
-     1  .vb-arena-rings        decorative, pointer-events none
-     5  .vb-arena-player-ring  stations (composite boxes)
-     6  .vb-arena-top-status / .vb-arena-bottom-feedback  reserved bands
-     10 .vb-arena-center       the ONE canonical buzzer
-     12 .vb-arena-overflow     "+N" chip
-   Bands are reserved by measured heights - stations never enter them
-   (enforced by calculateArenaGeometry + dev assertions). */
-
-.vb-arena-stage {
-  position: relative;
-  width: 100%;
-  max-width: 420px;
-  margin-inline: auto;
-  aspect-ratio: 1 / 1;
-  container-type: inline-size;
-}
-
-.vb-arena-rings {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  pointer-events: none;
-}
-
-/* Themeable ring decoration — overrides the SVG presentation attributes. */
-.vb-arena-rings circle:nth-of-type(1) {
-  stroke: var(--vb-ring);
-}
-
-.vb-arena-rings circle:nth-of-type(2) {
-  stroke: var(--vb-ring2);
-}
-
-.vb-arena-rings circle:nth-of-type(3) {
-  fill: var(--vb-dish);
-  stroke: var(--vb-dish-border);
-}
-
-/* Reserved TOP status zone - round pill, VIDEO PAUSED, winner summary. */
-.vb-arena-top-status {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 6;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 2px 4px;
-  min-height: 34px;
-  pointer-events: none;
-}
-
-.vb-buzz-round-pill {
-  font-family: var(--vb-font-display);
-  font-size: 0.58rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--vb-text);
-  background: var(--vb-muted);
-  border: 1.5px solid var(--vb-ink);
-  border-radius: var(--vb-control-radius);
-  padding: 1px 8px;
-  white-space: nowrap;
 }
 
-.vb-arena-top-status .vb-paused-pill {
+/* Round pill / VIDEO PAUSED / winner card strip above the buzzer.
+   Compact chips — the authoritative winner popup stays below the video. */
+.vb-buzzer-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 12px; /* breathing room for the raised dome */
+}
+
+.vb-buzzer-status-stack .vb-paused-pill {
   padding: 2px 10px;
   font-size: 0.58rem;
 }
 
-/* Winner summary - compact, wraps, never full-arena opaque. */
-.vb-arena-top-status .vb-winner-card {
+.vb-buzzer-status-stack .vb-winner-card {
   width: auto;
-  max-width: 240px;
+  max-width: 260px;
   padding: 3px 8px;
   gap: 6px;
 }
 
-.vb-arena-top-status .vb-winner-card__name {
+.vb-buzzer-status-stack .vb-winner-card__name {
   white-space: normal;
   font-size: 0.78rem;
   line-height: 1.15;
 }
 
-.vb-arena-top-status .vb-winner-card__meta {
+.vb-buzzer-status-stack .vb-winner-card__meta {
   white-space: nowrap;
 }
 
-/* Reserved BOTTOM feedback zone - "You buzzed first!" + keyboard hint. */
-.vb-arena-bottom-feedback {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 2px;
-  padding: 2px 4px;
-  min-height: 44px;
-  pointer-events: none;
-}
+/* ---------- Mechanical buzzer zone ----------
+   Responsive square (container queries drive text sizing). The zone is
+   larger than the button so the raised dome and ground shadow are never
+   clipped; nothing in the stage uses overflow: hidden. */
 
-.vb-arena-bottom-feedback .vb-buzz-status {
-  min-height: 1em;
-  font-size: 0.7rem;
-  font-family: var(--vb-font-display);
-  font-weight: 900;
-}
-
-.vb-arena-bottom-feedback .vb-buzz-kbd-hint {
-  font-size: 0.52rem;
-  padding: 1px 7px;
-}
-
-/* Player ring - stations only; placed by JS from measured geometry. */
-.vb-arena-player-ring {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
-}
-
-.vb-arena-player-ring .vb-arena-player {
-  pointer-events: auto;
-}
-
-.vb-arena-overflow {
-  position: absolute;
-  left: 50%;
-  bottom: 2px;
-  transform: translateX(-50%);
-  font-family: var(--vb-font-display);
-  font-size: 0.66rem;
-  font-weight: 900;
-  color: var(--vb-text-muted);
-  background: var(--vb-muted);
-  border: var(--vb-outline-thin);
-  border-radius: var(--vb-control-radius);
-  padding: 2px 10px;
-  z-index: 12;
-}
-
-/* Center zone - ONLY the canonical buzzer; positioned by the geometry. */
-.vb-arena-center {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  display: flex;
-  justify-content: center;
-}
-
-/* Podium station - composite box (avatar + name + score + controls). */
-
-.vb-arena-player {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  z-index: 5;
-  width: max-content;
-  max-width: 42cqw;
-}
-
-.vb-arena-player[hidden] {
-  display: none !important;
-}
-
-/* Compact size class — smaller stations so narrow stages keep podiums. */
-.vb-arena-stage[data-size="compact"] .vb-arena-avatar {
-  width: 30px;
-  height: 30px;
-}
-
-.vb-arena-stage[data-size="compact"] .vb-arena-plate {
-  padding: 1px 3px;
-}
-
-.vb-arena-stage[data-size="compact"] .vb-arena-plate-name-text {
-  font-size: 0.54rem;
-}
-
-.vb-arena-stage[data-size="compact"] .vb-arena-plate-score-value {
-  font-size: 0.56rem;
-}
-
-.vb-arena-stage[data-size="compact"] .vb-arena-score-row {
-  gap: 2px;
-}
-
-.vb-arena-stage[data-size="compact"] .vb-arena-player-you {
-  font-size: 0.46rem;
-  padding: 0 5px;
-}
-
-.vb-arena-avatar {
-  --player-color: #64748b;
-  position: relative;
-  width: clamp(34px, 11cqw, 46px);
-  height: clamp(34px, 11cqw, 46px);
-}
-
-.vb-arena-avatar .vb-avatar {
-  border-radius: 50%;
-  border: 2.5px solid var(--player-color);
-  overflow: hidden;
-  background: var(--vb-avatar-bg);
-  box-shadow: 0 2px 0 var(--vb-ink);
-}
-
-.vb-arena-avatar--winner .vb-avatar {
-  border-color: var(--vb-tertiary);
-  box-shadow: 0 0 0 3px var(--vb-win-ring), 0 2px 0 var(--vb-ink);
-}
-
-.vb-arena-avatar--you .vb-avatar {
-  border-color: var(--vb-secondary);
-  box-shadow: 0 0 0 3px #a7f3d0, 0 2px 0 var(--vb-ink);
-}
-
-.vb-arena-dot {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--vb-ink);
-  background: var(--vb-ring);
-}
-
-.vb-arena-dot--online {
-  background: var(--vb-secondary);
-}
-
-.vb-arena-dot--connecting,
-.vb-arena-dot--reconnecting {
-  background: var(--vb-tertiary);
-}
-
-.vb-arena-dot--offline {
-  background: var(--vb-ring2);
-}
-
-.vb-arena-player-you {
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--vb-font-display);
-  font-size: 0.52rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  color: #fff;
-  background: var(--vb-secondary-dark);
-  border: 1.5px solid var(--vb-ink);
-  border-radius: var(--vb-control-radius);
-  padding: 1px 6px;
-  z-index: 2;
-  white-space: nowrap;
-}
-
-.vb-arena-player-win {
-  position: absolute;
-  top: -2px;
-  left: 50%;
-  transform: translate(-50%, 0) rotate(-2deg);
-  font-family: var(--vb-font-display);
-  font-size: 0.56rem;
-  font-weight: 900;
-  color: var(--vb-ink);
-  background: var(--vb-tertiary);
-  border: 2px solid var(--vb-ink);
-  border-radius: var(--vb-control-radius);
-  padding: 0 6px;
-  z-index: 3;
-  white-space: nowrap;
-}
-
-.vb-arena-plate {
-  background: var(--vb-card);
-  border: 2px solid var(--vb-ink);
-  border-radius: 10px;
-  padding: 2px 5px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  box-shadow: 0 2px 0 var(--vb-ink);
-  max-width: 100%;
-}
-
-.vb-arena-plate-name {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.vb-arena-plate-name-text {
-  font-family: var(--vb-font-display);
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: var(--vb-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vb-arena-plate-crown {
-  font-size: 0.56rem;
-  flex: none;
-}
-
-.vb-arena-plate-score {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Score controls row — part of the station bbox; suppresses global buzz
-   shortcuts via data-disable-buzz-shortcuts (checked by keyboard-buzz). */
-.vb-arena-score-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.vb-arena-score-row[aria-busy="true"] {
-  opacity: 0.75;
-}
-
-/* Score buttons: visible 34/40px, interactive target 44px via ::after
-   (inset -5px). Glyphs − / + / ± carry the meaning; color only reinforces. */
-.vb-arena-score-btn {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: 2px solid var(--vb-ink);
-  font-family: var(--vb-font-display);
-  font-weight: 900;
-  font-size: 1rem;
+.vb-mechanical-buzzer-zone {
+  width: min(100%, 340px);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
   display: grid;
   place-items: center;
-  cursor: pointer;
+  position: relative;
+  container-type: inline-size;
+}
+
+.vb-mechanical-buzzer {
+  --buzzer-size: min(100%, 320px);
+
+  position: relative;
+  width: var(--buzzer-size);
+  aspect-ratio: 1 / 1;
   padding: 0;
-  line-height: 1;
-  transition: transform 0.06s ease;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  cursor: not-allowed;
 }
 
-.vb-arena-score-btn::after {
-  /* Invisible hit-area expansion → 44×44 interactive target. */
-  content: "";
+.vb-mechanical-buzzer--enabled {
+  cursor: pointer;
+}
+
+.vb-mechanical-buzzer--won {
+  cursor: default;
+}
+
+/* Decorative layers: absolute, non-interactive, non-layout-affecting. */
+.vb-buzzer-shadow,
+.vb-buzzer-base,
+.vb-buzzer-button {
   position: absolute;
-  inset: -5px;
-}
-
-.vb-arena-score-btn:active {
-  transform: translateY(1px);
-}
-
-.vb-arena-score-btn--minus {
-  background: var(--vb-rose-bg);
-  color: var(--vb-rose-text);
-}
-
-.vb-arena-score-btn--minus:hover {
-  background: var(--vb-rose-hover);
-}
-
-.vb-arena-score-btn--plus {
-  background: var(--vb-teal-bg);
-  color: var(--vb-secondary-dark);
-}
-
-.vb-arena-score-btn--plus:hover {
-  background: var(--vb-teal-hover);
-}
-
-.vb-arena-score-btn--pending {
-  animation: vb-score-pending 0.9s ease-in-out infinite;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
   pointer-events: none;
 }
 
-@keyframes vb-score-pending {
-  50% {
-    opacity: 0.45;
-  }
+.vb-buzzer-shadow {
+  z-index: 0;
+  transform: translateY(12%);
+  background: rgb(0 0 0 / 0.35);
+  filter: blur(5px);
+  transition: transform 100ms ease, filter 100ms ease;
 }
 
-/* Anchored trigger + popover (narrow stages): one ± button per station
-   opening a bounded −1 / +1 panel. Transient host-initiated overlay —
-   sits above stations by design (z 15), never over the video. */
-.vb-arena-score-trigger {
-  width: 40px;
-  height: 40px;
-  font-size: 1.1rem;
-  background: var(--vb-tertiary);
-  color: var(--vb-ink);
+.vb-buzzer-base {
+  z-index: 1;
+  transform: translateY(3%);
+  background: linear-gradient(to bottom, #444, #111);
+  border: 3px solid #111827;
+  box-shadow:
+    inset 0 2px 3px rgb(255 255 255 / 0.2),
+    0 7px 0 #111,
+    0 12px 12px rgb(0 0 0 / 0.45);
 }
 
-.vb-arena-score-trigger:hover {
-  background: var(--vb-tertiary-dark);
-  color: var(--vb-text);
-}
-
-.vb-arena-score-trigger[aria-expanded="true"] {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--vb-ink);
-}
-
-.vb-arena-score-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 15; /* above stations (5) and zones (6) — transient, host-initiated */
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  background: var(--vb-card);
-  border: 2px solid var(--vb-ink);
-  border-radius: 12px;
-  box-shadow: 0 3px 0 var(--vb-ink);
-}
-
-.vb-arena-score-popover .vb-arena-score-btn {
-  width: 44px;
-  height: 44px;
-  font-size: 1.1rem;
-}
-
-.vb-arena-score-popover .vb-arena-score-btn::after {
-  display: none; /* popover buttons are already 44px targets */
-}
-
-/* Edge compaction - stations near left/right borders narrow their label.
-   Buttons keep their 34px visible size (44px hit via ::after) so targets
-   stay compliant; only the text compresses. */
-.vb-arena-station--edge .vb-arena-plate {
-  padding: 2px 3px;
-}
-
-.vb-arena-station--edge .vb-arena-plate-name-text {
-  max-width: 52px;
-}
-
-/* State tints */
-.vb-arena-player--offline {
-  opacity: 0.45;
-}
-
-.vb-arena-player--reconnecting .vb-arena-plate {
-  border-style: dashed;
-}
-
-.vb-arena-player--winner .vb-arena-plate {
-  border-color: var(--vb-tertiary);
-  box-shadow: 0 2px 0 var(--vb-ink), 0 0 0 3px var(--vb-win-ring);
-}
-
-.vb-arena-player--locked {
-  opacity: 0.72;
-}
-
-.vb-arena-score-pop .vb-arena-plate-score-value {
-  animation: vb-score-pop 0.4s ease-out;
-}
-
-@keyframes vb-score-pop {
-  40% {
-    transform: scale(1.35);
-    color: var(--vb-tertiary-dark);
-  }
-}
-
-.vb-arena-hostbar {
-  min-height: 0;
-}
-
-.vb-arena-footer {
-  margin: 0;
-  font-size: 0.72rem;
-  text-align: center;
-  color: var(--vb-text-faint);
-}
-
-/* ============================================================
-   Buzz panel — THE central arcade buzzer
-   ============================================================ */
-
-.vb-buzz-core {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.vb-buzz-btn {
-  font-family: var(--vb-font-display);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  font-size: clamp(1.3rem, 8cqw, 1.9rem);
-  color: #fff;
-  width: clamp(84px, 30cqw, 124px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 4px solid var(--vb-ink);
-  background: var(--vb-ring);
-  cursor: not-allowed;
-  user-select: none;
-  touch-action: manipulation;
+.vb-buzzer-button {
+  z-index: 2;
+  inset: 5%;
+  transform: translateY(-9%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  box-shadow: 0 10px 0 var(--vb-primary-deep), 0 14px 22px rgba(39, 41, 53, 0.25);
-  transition: transform 0.07s ease, box-shadow 0.07s ease, background 0.15s ease;
+  gap: 0.2em;
+  padding: 8%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 25%, #ff5a65 0%, #cc0000 50%, #7a0000 100%);
+  border: 4px solid #1f2937;
+  box-shadow:
+    inset 0 4px 6px rgb(255 255 255 / 0.55),
+    inset 0 -6px 12px rgb(0 0 0 / 0.45),
+    0 10px 0 #660000,
+    0 12px 8px rgb(0 0 0 / 0.5);
+  transition:
+    transform 60ms cubic-bezier(0.3, 0.7, 0.4, 1),
+    box-shadow 60ms ease,
+    filter 120ms ease;
 }
 
-.vb-buzz-btn::before {
-  content: "📣";
-  font-size: clamp(1.2rem, 2.4vw, 1.7rem);
+/* Red dome text — sized by container queries so it always fits. */
+.vb-buzzer-icon {
+  font-size: clamp(1rem, 7cqw, 1.6rem);
   line-height: 1;
+  text-shadow: 0 2px 4px rgb(0 0 0 / 0.55);
 }
 
-.vb-buzz-btn--enabled {
-  background: var(--vb-primary);
-  cursor: pointer;
-  box-shadow: 0 10px 0 var(--vb-primary-deep), 0 14px 22px rgba(39, 41, 53, 0.28),
-    inset 0 3px 0 rgba(255, 255, 255, 0.35);
+.vb-buzzer-text {
+  max-width: 88%;
+  color: rgb(255 255 255 / 0.96);
+  font-family: var(--vb-font-display);
+  font-size: clamp(1.35rem, 12cqw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 3px 5px rgb(0 0 0 / 0.7);
+  user-select: none;
+  white-space: nowrap;
 }
 
-.vb-buzz-btn--enabled:hover {
-  background: var(--vb-primary-dark);
+.vb-buzzer-key-hint {
+  max-width: 88%;
+  padding: 0.2em 0.7em;
+  color: rgb(255 255 255 / 0.9);
+  background: rgb(15 23 42 / 0.45);
+  border-radius: 999px;
+  font-family: var(--vb-font-display);
+  font-size: clamp(0.55rem, 3.2cqw, 0.8rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.vb-buzz-btn--enabled:active,
-.vb-buzz-btn--pressed {
-  transform: translateY(7px);
-  box-shadow: 0 3px 0 var(--vb-primary-deep);
+/* Pressed: dome sinks, ground shadow compresses. Class is set on
+   pointerdown for touch reliability; :active covers mouse. */
+.vb-mechanical-buzzer.is-pressed .vb-buzzer-button,
+.vb-mechanical-buzzer:active:not(:disabled) .vb-buzzer-button {
+  transform: translateY(0%);
+  box-shadow:
+    inset 0 4px 6px rgb(255 255 255 / 0.4),
+    inset 0 -6px 12px rgb(0 0 0 / 0.5),
+    0 2px 0 #660000,
+    0 4px 4px rgb(0 0 0 / 0.4);
+  transition: transform 30ms ease;
 }
 
-.vb-buzz-btn--won {
-  background: var(--vb-secondary);
-  cursor: default;
-  box-shadow: 0 10px 0 var(--vb-secondary-dark), 0 14px 22px rgba(39, 41, 53, 0.25);
+.vb-mechanical-buzzer.is-pressed .vb-buzzer-shadow,
+.vb-mechanical-buzzer:active:not(:disabled) .vb-buzzer-shadow {
+  transform: translateY(6%);
+  filter: blur(2px);
+  transition: transform 30ms ease;
+}
+
+/* Disabled / locked visual states — dimensions preserved, no press effect,
+   readable label (not opacity alone). */
+.vb-mechanical-buzzer:disabled {
+  cursor: not-allowed;
+}
+
+.vb-mechanical-buzzer:not(.vb-mechanical-buzzer--enabled):not(.vb-mechanical-buzzer--won) .vb-buzzer-button {
+  filter: saturate(0.55) brightness(0.97);
+}
+
+/* Confirmed winner (from the authoritative round snapshot only). */
+.vb-mechanical-buzzer--won .vb-buzzer-button {
+  background: radial-gradient(circle at 35% 25%, #7bf0cd 0%, #12b886 55%, #0b7a5c 100%);
+  box-shadow:
+    inset 0 4px 6px rgb(255 255 255 / 0.5),
+    inset 0 -6px 12px rgb(0 0 0 / 0.4),
+    0 10px 0 var(--vb-secondary-dark),
+    0 12px 8px rgb(0 0 0 / 0.45);
+}
+
+.vb-mechanical-buzzer:focus-visible {
+  outline: 3px solid var(--vb-blue);
+  outline-offset: 3px;
+}
+
+/* Live status line below the buzzer. */
+.vb-buzzer-status {
+  min-height: 1.2em;
+  font-family: var(--vb-font-display);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--vb-text-muted);
 }
 
 .vb-buzz-status {
@@ -1645,22 +1265,34 @@ button {
   color: var(--vb-danger);
 }
 
-.vb-buzz-kbd-hint {
-  margin: 0;
+.vb-buzz-round-pill {
   font-family: var(--vb-font-display);
-  font-size: 0.56rem;
+  font-size: 0.58rem;
   font-weight: 900;
-  letter-spacing: 0.1em;
-  color: var(--vb-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vb-text);
   background: var(--vb-muted);
   border: 1.5px solid var(--vb-ink);
   border-radius: var(--vb-control-radius);
   padding: 1px 8px;
+  white-space: nowrap;
 }
 
 @media (pointer: coarse), (max-width: 767px), (max-height: 760px) {
-  .vb-buzz-kbd-hint {
-    display: none;
+  .vb-buzzer-key-hint {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vb-buzzer-button,
+  .vb-buzzer-shadow {
+    transition: none;
+  }
+
+  .vb-mechanical-buzzer.is-pressed .vb-buzzer-button {
+    transform: translateY(-2%);
   }
 }
 

@@ -56,7 +56,7 @@ import type { VideoQueueSnapshot } from "./types/queue";
 import {
   createBuzzPanel,
 } from "./ui/components/buzz-panel";
-import { createPlayerArena } from "./ui/components/player-arena";
+import { createBuzzerStage } from "./ui/components/buzzer-stage";
 import { createBuzzPopup } from "./ui/components/buzz-popup";
 import { createPlayerQueue } from "./ui/components/player-queue";
 import {
@@ -236,7 +236,7 @@ async function enterRoom(
 
     /* ---------------- Canonical host score adjustment ----------------
        THE single UI wrapper around adjustPlayerScore (scoring.ts).
-       Used by the Players panel rows, the Player Arena controls and the
+       Used by the Players panel rows, the buzzer stage and the
        advanced scoring form — never a second write path. Errors are
        toasted here so callers only manage their pending state. */
     async function applyScoreAdjust(
@@ -317,14 +317,12 @@ async function enterRoom(
       videoEmptyState.hidden = true;
     }
 
-    /* Player Arena — created with the buzz panel INSIDE it so there is
-       exactly one canonical BUZZ button per client. Data flows in later. */
-    const arena = createPlayerArena({
-      isHost,
-      // Same canonical wrapper as the Players panel — no second write path.
-      onAdjust: (targetUid, delta) => applyScoreAdjust(targetUid, delta),
-    });
-    view.arenaSlot.append(arena.root);
+    /* Buzzer stage — the former Player Arena zone, now dedicated to the
+       large mechanical buzzer (the ONE canonical BUZZ button). Player list,
+       presence and host scoring live in the Players panel; the authoritative
+       winner popup stays below the video. */
+    const stage = createBuzzerStage();
+    view.arenaSlot.append(stage.root);
 
     /* Buzz popup — normal-flow sibling BELOW the video shell. Actions are
        injected later (same handlers as the host panel → no second path). */
@@ -334,7 +332,7 @@ async function enterRoom(
     /* Buzzer */
     let buzzLock = false;
     const buzzPanel = createBuzzPanel({ onBuzz: () => doBuzz() });
-    arena.mountBuzzPanel(buzzPanel.root, buzzPanel.statusRoot, buzzPanel.feedbackRoot);
+    stage.mountBuzzPanel(buzzPanel.root, buzzPanel.statusRoot, buzzPanel.feedbackRoot);
 
     function doBuzz(): void {
       // Unlock audio synchronously within the user gesture before the RTDB transaction.
@@ -344,7 +342,7 @@ async function enterRoom(
       if (buzzLock || !buzzPanel.isEnabled()) return;
       buzzLock = true;
       buzzPanel.markPending(true);
-      // Neutral pending light on my own podium — never a winner indication.
+      // Neutral pending state — never a winner indication.
       // Neutral local "Buzz sent…" below the video (replaced by the
       // authoritative winner popup once RTDB confirms).
       buzzPopup.setPending(true);
@@ -530,16 +528,48 @@ async function enterRoom(
     /* Dev-only: verify buzzer button is visible in the initial viewport. */
     if (import.meta.env.DEV) {
       const checkBuzzerVisibility = (): void => {
-        const btn = buzzPanel.root.querySelector<HTMLButtonElement>(".vb-buzz-btn");
-        if (!btn) return;
-        const { width, height, top, bottom } = btn.getBoundingClientRect();
+        const btns = document.querySelectorAll<HTMLButtonElement>(".vb-mechanical-buzzer");
+        if (btns.length !== 1) {
+          console.warn(`[vb-layout] expected exactly 1 mechanical buzzer, found ${btns.length}`);
+          return;
+        }
+        const btn = btns[0]!;
+        const rect = btn.getBoundingClientRect();
+        const zone = btn.closest<HTMLElement>(".vb-mechanical-buzzer-zone");
+        const zoneRect = zone?.getBoundingClientRect();
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        if (vw >= 1100 && vh >= 720 && (bottom < 0 || top > vh || width === 0 || height === 0)) {
+
+        // Primary UX guard: BUZZ must be visible on desktop.
+        if (vw >= 1100 && vh >= 720 && (rect.bottom < 0 || rect.top > vh || rect.width === 0 || rect.height === 0)) {
           console.warn(
             `[vb-layout] buzzer button is below the fold at ${vw}×${vh} — ` +
-            `getBoundingClientRect: top=${Math.round(top)} bottom=${Math.round(bottom)}`,
+            `getBoundingClientRect: top=${Math.round(rect.top)} bottom=${Math.round(rect.bottom)}`,
           );
+        }
+
+        // Geometry diagnostics: circularity, aspect, clipping, overlaps.
+        const ratio = rect.height > 0 ? rect.width / rect.height : 0;
+        const shadow = btn.querySelector<HTMLElement>(".vb-buzzer-shadow");
+        const shadowRect = shadow?.getBoundingClientRect();
+        const clippedShadow =
+          shadowRect && zoneRect
+            ? shadowRect.bottom > zoneRect.bottom + 1 || shadowRect.right > zoneRect.right + 1
+            : false;
+        const kbdCount = (window as unknown as { __vbKeyboardListeners?: number }).__vbKeyboardListeners;
+
+        console.debug(
+          `[vb-buzzer] state=${btn.dataset.state ?? "?"} disabled=${btn.disabled} ` +
+          `button=${Math.round(rect.width)}×${Math.round(rect.height)} @(${Math.round(rect.left)},${Math.round(rect.top)}) ` +
+          `aspect=${ratio.toFixed(3)} zone=${zoneRect ? `${Math.round(zoneRect.width)}×${Math.round(zoneRect.height)}` : "missing"} ` +
+          `shadowClipped=${clippedShadow} buzzerCount=${btns.length} ` +
+          `keyListeners=${kbdCount ?? "?"}`,
+        );
+        if (Math.abs(ratio - 1) > 0.02) {
+          console.warn(`[vb-layout] buzzer is not circular (aspect ${ratio.toFixed(3)})`);
+        }
+        if (clippedShadow) {
+          console.warn("[vb-layout] buzzer ground shadow is clipped by its zone");
         }
       };
       // Check after layout settles, and on resize.
@@ -550,6 +580,13 @@ async function enterRoom(
     /* Keyboard shortcuts (Space / Enter / NumpadEnter) */
     let modalOpen = false;
     hostPanel?.onModalOpenChange?.((open: boolean) => { modalOpen = open; });
+    if (import.meta.env.DEV) {
+      const w = window as unknown as { __vbKeyboardListeners?: number };
+      w.__vbKeyboardListeners = (w.__vbKeyboardListeners ?? 0) + 1;
+      if (w.__vbKeyboardListeners > 1) {
+        console.warn(`[vb-layout] ${w.__vbKeyboardListeners} global keyboard listeners registered`);
+      }
+    }
     const unKeyboard = setupKeyboardBuzz({
       getState: () => ({
         buzzEnabled: buzzPanel.isEnabled(),
@@ -606,7 +643,7 @@ async function enterRoom(
           list.length,
         );
         resolveWinnerColor();
-        arena.setRoomData(list, latestRound, uid);
+        stage.setRoomData(list, latestRound, uid);
         scoring?.setParticipants(list);
         // keep sound panel's selector in sync if profile changed remotely for self
         const self = list.find((p) => p.uid === uid);
@@ -726,7 +763,7 @@ async function enterRoom(
       diagnostics.setRound(round);
       view.setRoundStatus(round.state);
       resolveWinnerColor();
-      arena.setRoomData(participants, round, uid);
+      stage.setRoomData(participants, round, uid);
 
       if (round.state === "open" && !round.buzz) {
         roundSessionByNumber.set(round.number, activeSessionFingerprint);
@@ -832,6 +869,10 @@ async function enterRoom(
     });
 
     stopRoom = () => {
+      if (import.meta.env.DEV) {
+        const w = window as unknown as { __vbKeyboardListeners?: number };
+        w.__vbKeyboardListeners = Math.max(0, (w.__vbKeyboardListeners ?? 1) - 1);
+      }
       unKeyboard();
       unParticipants();
       unPresenceDebug();
@@ -844,7 +885,7 @@ async function enterRoom(
       stopHeartbeat?.();
       player?.dispose();
       buzzPanel.dispose();
-      arena.dispose();
+      stage.dispose();
       playerQueue.root.remove();
       hostPanel_?.dispose();
       soundPanel.dispose();

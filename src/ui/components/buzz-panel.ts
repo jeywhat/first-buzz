@@ -12,11 +12,11 @@ const REASON_MESSAGES: Record<BuzzBlockReason, string> = {
 };
 
 export interface BuzzPanelHandles {
-  /** Core control: canonical BUZZ button + keyboard hint (center zone). */
+  /** Core control: the ONE mechanical buzzer button (stage zone). */
   root: HTMLElement;
-  /** Winner card + VIDEO PAUSED pill (arena status zone, above the ring). */
+  /** Round pill + VIDEO PAUSED pill + winner card (stage status strip). */
   statusRoot: HTMLElement;
-  /** Status line (arena feedback zone, below the ring). */
+  /** Status line (stage .vb-buzzer-status live region). */
   feedbackRoot: HTMLElement;
   /** Drives availability + winner card from the authoritative round node. */
   setRound(round: RoundData): void;
@@ -36,7 +36,29 @@ export interface BuzzPanelHandles {
   dispose(): void;
 }
 
-/** Large buzzer with click/touch input; Space handling lives in main.ts. */
+/**
+ * Visual states rendered as data-state on the button (derived ONLY from the
+ * existing round/ctx/external state — no new decision logic):
+ *   idle | ready | pending | buzzed | disabled | disconnected
+ *   | host-only | round-closed | no-video
+ */
+export type BuzzerVisualState =
+  | "idle"
+  | "ready"
+  | "pending"
+  | "buzzed"
+  | "disabled"
+  | "disconnected"
+  | "host-only"
+  | "round-closed"
+  | "no-video";
+
+/**
+ * THE canonical buzzer: one native <button> rendered as the large mechanical
+ * buzzer (shadow + dark base + red dome). Click/touch AND the global
+ * Space/Enter shortcut (main.ts) both funnel into the same onBuzz() →
+ * attemptBuzz() transaction. No winner decision, no Firebase writes here.
+ */
 export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   const winnerCard = document.createElement("div");
   winnerCard.className = "vb-winner-card";
@@ -63,27 +85,61 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
 
   winnerCard.append(winnerChip, winnerName, winnerMeta);
 
+  /* ---------- THE mechanical buzzer (single interactive element) ---------- */
+
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "vb-buzz-btn";
-  btn.textContent = "BUZZ";
+  btn.className = "vb-mechanical-buzzer";
+  btn.id = "master-buzzer";
+  btn.setAttribute("aria-label", "Buzz");
+  // State text (WAITING…, YOU!, NO VIDEO…) lives in the stage live region.
+  btn.setAttribute("aria-describedby", "vb-buzzer-status");
   btn.disabled = true;
 
+  // Decorative layers — never interactive, never announced.
+  const shadow = document.createElement("span");
+  shadow.className = "vb-buzzer-shadow";
+  shadow.setAttribute("aria-hidden", "true");
+
+  const base = document.createElement("span");
+  base.className = "vb-buzzer-base";
+  base.setAttribute("aria-hidden", "true");
+
+  const dome = document.createElement("span");
+  dome.className = "vb-buzzer-button";
+
+  const icon = document.createElement("span");
+  icon.className = "vb-buzzer-icon";
+  icon.textContent = "📣";
+  icon.setAttribute("aria-hidden", "true");
+
+  const label = document.createElement("span");
+  label.className = "vb-buzzer-text";
+  label.textContent = "BUZZ!";
+
+  const hint = document.createElement("span");
+  hint.className = "vb-buzzer-key-hint";
+  hint.textContent = "SPACE / ENTER";
+  hint.setAttribute("aria-hidden", "true");
+
+  dome.append(icon, label, hint);
+  btn.append(shadow, base, dome);
+
   // Immediate visual response for touch users (:active is unreliable there).
-  const clearPress = (): void => btn.classList.remove("vb-buzz-btn--pressed");
+  const clearPress = (): void => btn.classList.remove("is-pressed");
   btn.addEventListener("pointerdown", () => {
-    if (!btn.disabled) btn.classList.add("vb-buzz-btn--pressed");
+    if (!btn.disabled) btn.classList.add("is-pressed");
   });
   btn.addEventListener("pointerup", clearPress);
   btn.addEventListener("pointerleave", clearPress);
   btn.addEventListener("pointercancel", clearPress);
 
+  // Live region state line — the STAGE wrapper carries aria-live/atomic so
+  // there is exactly one live region (no nested announcements).
   const statusLine = document.createElement("div");
   statusLine.className = "vb-buzz-status";
-  statusLine.setAttribute("aria-live", "polite");
 
-  // Split roots: the arena mounts each part in its dedicated zone.
-  // Center = button ONLY (no text, no winner info, no hint).
+  // Split roots: the stage mounts each part in its dedicated zone.
   const root = document.createElement("section");
   root.className = "vb-buzz-core";
   const statusRoot = document.createElement("div");
@@ -91,19 +147,14 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   const feedbackRoot = document.createElement("div");
   feedbackRoot.className = "vb-buzz-feedback";
 
-  // Round state pill — top status zone.
+  // Round state pill — status strip.
   const roundPill = document.createElement("span");
   roundPill.className = "vb-buzz-round-pill";
   roundPill.hidden = true;
 
-  // Keyboard hint — feedback zone, below the status line.
-  const kbdHint = document.createElement("p");
-  kbdHint.className = "vb-buzz-kbd-hint";
-  kbdHint.textContent = "SPACE / ENTER";
-
   root.append(btn);
   statusRoot.append(roundPill, pausedPill, winnerCard);
-  feedbackRoot.append(statusLine, kbdHint);
+  feedbackRoot.append(statusLine);
 
   /* ---------- state ---------- */
 
@@ -136,7 +187,8 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     if (!round) {
       enabled = false;
       btn.disabled = true;
-      btn.textContent = "BUZZ!";
+      btn.dataset.state = "idle";
+      label.textContent = "BUZZ!";
       statusLine.textContent = externalStatus ?? "";
       winnerCard.hidden = true;
       return;
@@ -152,22 +204,43 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     enabled = effective.enabled && externalStatus === null;
 
     btn.disabled = !enabled;
-    // Arcade state label — information is always duplicated in statusLine.
-    const LABELS = {
-      pending: "BUZZING…",
-      taken: "BUZZED",
-      waiting: "WAITING…",
-      round_over: "CLOSED",
-      host_forbidden: "HOST ONLY",
-    } as const;
-    let label = "BUZZ!";
-    if (externalStatus !== null) label = "OFFLINE";
-    else if (enabled) label = "BUZZ!";
-    else if (effective.reason === "won") label = "YOU!";
-    else if (effective.reason) label = LABELS[effective.reason];
-    btn.textContent = label;
-    btn.classList.toggle("vb-buzz-btn--enabled", enabled);
-    btn.classList.toggle("vb-buzz-btn--won", effective.reason === "won");
+
+    // Arcade state label + machine-readable state. The full, readable
+    // message is always duplicated in the stage live region.
+    let state: BuzzerVisualState;
+    let label_text: string;
+    if (externalStatus !== null) {
+      const offline = /connection|reconnect|offline/i.test(externalStatus);
+      state = offline ? "disconnected" : "no-video";
+      label_text = offline ? "OFFLINE" : "NO VIDEO";
+    } else if (enabled) {
+      state = "ready";
+      label_text = "BUZZ!";
+    } else {
+      const LABELS: Record<BuzzBlockReason, string> = {
+        pending: "BUZZING…",
+        won: "YOU!",
+        taken: "BUZZED",
+        waiting: "WAITING…",
+        round_over: "CLOSED",
+        host_forbidden: "HOST ONLY",
+      };
+      label_text = effective.reason ? LABELS[effective.reason] : "BUZZ!";
+      state =
+        effective.reason === "won"
+          ? "buzzed"
+          : effective.reason === "taken"
+            ? "buzzed"
+            : effective.reason === "pending"
+              ? "pending"
+              : effective.reason === "host_forbidden"
+                ? "host-only"
+                : "round-closed";
+    }
+    btn.dataset.state = state;
+    label.textContent = label_text;
+    btn.classList.toggle("vb-mechanical-buzzer--enabled", enabled);
+    btn.classList.toggle("vb-mechanical-buzzer--won", effective.reason === "won");
 
     statusLine.classList.toggle("vb-buzz-status--won", effective.reason === "won");
     statusLine.classList.toggle("vb-buzz-status--alert", effective.reason === "taken");

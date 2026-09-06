@@ -18,7 +18,7 @@ import type { ParticipantView } from "../../types/participant";
  *           div.vb-video-status-strip
  *           div.vb-buzz-popup-region
  *       aside.vb-game-sidebar
- *         (arenaSlot)             — Player Arena w/ central BUZZ
+ *         (arenaSlot)             — Buzzer stage w/ mechanical buzzer
  *         participants            — Players panel: presence, avatar, score,
  *                                   host-only −/+ adjustments (single source)
  *         playerQueue slot        — read-only queue summary
@@ -200,7 +200,7 @@ export function renderRoomView(opts: {
   sidebar.className = "vb-game-sidebar";
 
   const arenaSlot = document.createElement("div");
-  arenaSlot.className = "vb-arena-slot";
+  arenaSlot.className = "vb-buzzer-slot";
 
   const participants = renderParticipantList({
     uid: opts.uid,
@@ -260,7 +260,7 @@ export function renderRoomView(opts: {
     },
     setPlayerCount(online, total) {
       void online;
-      void total; // header identity + arena badge carry counts now
+      void total; // header identity + buzzer badge carry counts now
     },
   };
 }
