@@ -54,8 +54,11 @@ function el<K extends keyof HTMLElementTagNameMap>(
 
 /**
  * "Buzz received" popup rendered as a NORMAL SIBLING after the video shell —
- * never an overlay above the iframe. Derived purely from confirmed RTDB round
- * state; no Firebase writes; no timers; no auto-dismiss.
+ * never an overlay above the iframe on desktop. On mobile (≤759px) it is an
+ * intentional notification overlay over the TOP of the video (slide-in like
+ * a received message) and it disappears when the host resumes (the round
+ * watcher hides it as soon as the round leaves 'buzzed'). Derived purely
+ * from confirmed RTDB round state; no Firebase writes; no auto-dismiss.
  */
 export function createBuzzPopup(): BuzzPopupHandles {
   const root = el("div", "vb-buzz-popup-region");
@@ -106,8 +109,11 @@ export function createBuzzPopup(): BuzzPopupHandles {
     if (card.closest(".vb-video-frame") || card.closest(".vb-video-shell")) {
       console.warn("[buzz-popup] WARN: popup rendered inside the video shell!");
     }
+    // Desktop invariant: normal-flow sibling (never absolute/fixed over the
+    // video). On mobile the popup intentionally overlays the video top as a
+    // received-message notification, so this check is desktop-width-gated.
     const pos = getComputedStyle(card).position;
-    if (pos === "absolute" || pos === "fixed") {
+    if (window.innerWidth >= 1100 && (pos === "absolute" || pos === "fixed")) {
       console.warn(`[buzz-popup] WARN: popup position is ${pos}`);
     }
     const stale = document.querySelector(".vb-video-error");

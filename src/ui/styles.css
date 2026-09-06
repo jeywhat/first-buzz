@@ -362,6 +362,17 @@ button {
   flex: none;
 }
 
+/* Leave control: open-door icon + text on desktop; icon-only (red) on
+   mobile via the ≤759px block. */
+.vb-leave-icon {
+  display: grid;
+  place-items: center;
+}
+
+.vb-leave-icon svg {
+  display: block;
+}
+
 .vb-brand {
   display: flex;
   align-items: center;
@@ -851,37 +862,9 @@ button {
   color: var(--vb-text-muted);
 }
 
-/* Status strip */
-.vb-video-status-strip {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  background: var(--vb-cream);
-  border: var(--vb-outline-thin);
-  border-radius: 16px;
-  padding: 10px 14px;
-}
-
-.vb-video-status-strip > span:first-child {
-  font-size: 1.15rem;
-}
-
-.vb-strip-chip {
-  margin-left: auto;
-  font-family: var(--vb-font-display);
-  font-size: 0.72rem;
-  font-weight: 900;
-  color: var(--vb-amber-ink);
-  background: var(--vb-amber-bg);
-  border: 2px solid var(--vb-ink);
-  border-radius: var(--vb-control-radius);
-  padding: 3px 10px;
-  white-space: nowrap;
-}
-
 /* ============================================================
-   Buzz popup (below the video — normal flow sibling)
+   Buzz popup (below the video — normal flow sibling on desktop;
+   notification overlay over the video top on mobile)
    ============================================================ */
 
 .vb-buzz-popup-region {
@@ -968,6 +951,19 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Mobile: the popup lands like a received message, sliding from the TOP
+   over the video (see the ≤759px block below). */
+@keyframes vb-popup-enter-top {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -2574,22 +2570,84 @@ button {
     padding: 10px;
   }
 
+  /* ONE-line header: no wrap, non-essential controls hidden. */
   .vb-topbar {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .vb-topbar-left,
+  .vb-topbar-right {
+    gap: 6px;
   }
 
   .vb-topbar-divider,
-  .vb-identity {
+  .vb-identity,
+  .vb-badge,
+  .vb-sound-toggle:not(.vb-theme-toggle) {
     display: none;
   }
 
+  .vb-brand {
+    gap: 5px;
+  }
+
+  .vb-brand-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+
   .vb-brand-text {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
+  }
+
+  .vb-host-tag {
+    font-size: 0.62rem;
+    padding: 2px 7px;
+  }
+
+  /* Leave: red open-door icon only (label carried by aria-label). */
+  .vb-leave-btn {
+    padding: 6px 9px;
+    color: var(--vb-danger);
+    border-color: var(--vb-danger);
+  }
+
+  .vb-leave-text {
+    display: none;
   }
 
   .vb-video-title-chip {
     max-width: 100%;
+  }
+
+  /* Buzz popup: notification over the TOP of the video. It slides in like
+     a received message and disappears when the host resumes (the round
+     watcher clears it as soon as the round leaves 'buzzed'). The region
+   stays mounted in normal flow on desktop widths. */
+  .vb-video-card {
+    position: relative;
+  }
+
+  .vb-buzz-popup-region {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    z-index: 30;
+    pointer-events: none;
+  }
+
+  .vb-buzz-popup {
+    pointer-events: auto;
+    box-shadow: var(--vb-hard-shadow);
+  }
+
+  .vb-buzz-popup--enter {
+    animation: vb-popup-enter-top 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2);
   }
 }
 

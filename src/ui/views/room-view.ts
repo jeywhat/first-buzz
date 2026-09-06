@@ -15,7 +15,6 @@ import type { ParticipantView } from "../../types/participant";
  *         section.vb-video-card
  *           div.vb-video-meta     — YouTube badge + title chip
  *           div.vb-video-shell    — player mounts here (neutral context)
- *           div.vb-video-status-strip
  *           div.vb-buzz-popup-region
  *       aside.vb-game-sidebar
  *         (arenaSlot)             — Buzzer stage w/ mechanical buzzer
@@ -133,8 +132,19 @@ export function renderRoomView(opts: {
   hostTag.textContent = "👑 HOST";
 
   const leaveBtn = document.createElement("button");
-  leaveBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
-  leaveBtn.textContent = "Leave";
+  leaveBtn.type = "button";
+  leaveBtn.className = "vb-btn vb-btn--ghost vb-btn--small vb-leave-btn";
+  // Open-door icon (red on mobile) — text stays for desktop widths.
+  const leaveIcon = document.createElement("span");
+  leaveIcon.className = "vb-leave-icon";
+  leaveIcon.setAttribute("aria-hidden", "true");
+  leaveIcon.innerHTML =
+    '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M3 12h12"/><path d="m11 8 4 4-4 4"/></svg>';
+  const leaveText = document.createElement("span");
+  leaveText.className = "vb-leave-text";
+  leaveText.textContent = "Leave";
+  leaveBtn.append(leaveIcon, leaveText);
+  leaveBtn.setAttribute("aria-label", "Leave room");
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
   headerRight.append(soundToggle, createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
@@ -173,25 +183,13 @@ export function renderRoomView(opts: {
   videoShell.className = "vb-video-shell";
   // (player root + idle empty state are inserted here by main.ts)
 
-  const statusStrip = document.createElement("div");
-  statusStrip.className = "vb-video-status-strip";
-  const stripIcon = document.createElement("span");
-  stripIcon.textContent = "🎵";
-  stripIcon.setAttribute("aria-hidden", "true");
-  const stripText = document.createElement("span");
-  stripText.textContent = "Listen closely — buzz first, answer out loud!";
-  const stripChip = document.createElement("span");
-  stripChip.className = "vb-strip-chip";
-  stripChip.textContent = "Host sets the points";
-  statusStrip.append(stripIcon, stripText, stripChip);
-
   const buzzPopupRegion = document.createElement("div");
   buzzPopupRegion.className = "vb-buzz-popup-region";
   buzzPopupRegion.setAttribute("role", "status");
   buzzPopupRegion.setAttribute("aria-live", "polite");
   buzzPopupRegion.setAttribute("aria-atomic", "true");
 
-  videoCard.append(videoMeta, videoShell, statusStrip, buzzPopupRegion);
+  videoCard.append(videoMeta, videoShell, buzzPopupRegion);
   videoColumn.append(videoCard);
 
   /* ---------- Sidebar ---------- */
