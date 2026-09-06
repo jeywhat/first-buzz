@@ -1034,6 +1034,65 @@ button {
   font-weight: 700;
 }
 
+/* ============================================================
+   Local media unlock card (restricted-media clients ONLY)
+   Normal-flow sibling BELOW the player — never an overlay on the
+   iframe, never .vb-video-error, never position:fixed. Hidden by
+   default; desktop-compatible clients never show it.
+   ============================================================ */
+
+.vb-media-unlock {
+  width: 100%;
+  margin-top: 2px;
+  padding: 10px 14px;
+  background: var(--vb-cream);
+  border: var(--vb-outline);
+  border-radius: 18px;
+  box-shadow: var(--vb-hard-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* display:flex above would defeat the hidden attribute — restore it. */
+.vb-media-unlock[hidden] {
+  display: none;
+}
+
+.vb-media-unlock__title {
+  margin: 0;
+  font-family: var(--vb-font-display);
+  font-weight: 900;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.vb-media-unlock__text {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--vb-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.vb-media-unlock__btn {
+  align-self: flex-start;
+}
+
+.vb-media-unlock__hint,
+.vb-media-unlock__done {
+  margin: 0;
+  font-family: var(--vb-font-display);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--vb-text-muted);
+}
+
+.vb-media-unlock__done {
+  color: var(--vb-secondary-dark);
+}
+
 /* Winner meta: relative buzz time + video position (moved from the Buzzer
    zone). Stays on one line per item; wraps safely on narrow widths. */
 .vb-buzz-popup__meta {

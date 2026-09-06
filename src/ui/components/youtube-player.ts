@@ -20,6 +20,13 @@ export interface YoutubePlayerHandles {
   pauseLocal(): void;
   /** Hard re-anchor to the last known authoritative state (reconnect/manual). */
   forceResync(): void;
+  /**
+   * LOCAL media unlock (restricted clients only, one trusted gesture):
+   * seeks the EXISTING player to the authoritative position, then plays or
+   * pauses exactly ONCE per the snapshot. Never writes to Firebase; no
+   * retry loop. Success is confirmed via the normal onStateChange flow.
+   */
+  localUnlockSync(state: VideoState, serverOffsetMs: number): void;
   dispose(): void;
 }
 
@@ -107,6 +114,10 @@ export function createYoutubePlayer(
   opts: {
     isHost: boolean;
     onHostAction(action: HostAction, positionSec: number): void;
+    /** Additive observer for the local media compatibility layer (optional). */
+    onPlayerStateChange?(playerState: number): void;
+    /** Fired ONCE when an authoritative play request did not start playback. */
+    onAutoplayBlocked?(): void;
   },
 ): YoutubePlayerHandles {
   /* ---------- DOM ---------- */
@@ -288,6 +299,34 @@ export function createYoutubePlayer(
   /** The video id the live iframe currently represents ('' = idle). */
   let currentVideoId = videoId;
 
+  /* ---------- Local autoplay-block detection (additive, no polling) ----
+     After an authoritative play request, a SINGLE one-shot check verifies
+     that local playback actually began. Desktop Chrome (playing normally)
+     clears it via onStateChange long before it fires; mobile browsers that
+     silently block playVideo() surface exactly one onAutoplayBlocked(). */
+  let autoplayCheckTimer = 0;
+  let autoplayCheckSeq = -1;
+  let lastAuthPlaying = false;
+
+  const isPlayingState = (ps: number): boolean =>
+    ps === YT.PlayerState.PLAYING || ps === YT.PlayerState.BUFFERING;
+
+  function armAutoplayBlockCheck(seq: number): void {
+    window.clearTimeout(autoplayCheckTimer);
+    autoplayCheckSeq = seq;
+    autoplayCheckTimer = window.setTimeout(() => {
+      if (disposed || !player || !ready) return;
+      if (autoplayCheckSeq !== seq) return; // superseded by a newer command
+      if (!lastAuthPlaying) return; // authoritative state moved on (e.g. buzz pause)
+      if (isPlayingState(player.getPlayerState())) return; // playing fine
+      opts.onAutoplayBlocked?.();
+    }, 2000);
+  }
+
+  function clearAutoplayBlockCheck(): void {
+    window.clearTimeout(autoplayCheckTimer);
+  }
+
   /* DEV-only command diagnostics (never in production bundles' runtime). */
   function devLogApplied(command: string, state: VideoState): void {
     if (!import.meta.env.DEV) return;
@@ -460,6 +499,8 @@ export function createYoutubePlayer(
       return;
     }
     appliedSeq = state.seq;
+    lastAuthPlaying = state.playing;
+    if (!state.playing) clearAutoplayBlockCheck(); // global pause: no block check
 
     // ---- Queue launch: switch the SAME iframe to the new video ----
     // Runs only after the fresh-seq guard so late snapshots of the previous
@@ -473,7 +514,10 @@ export function createYoutubePlayer(
         // CUE first: deterministic paused frame at 0. playVideo() right after
         // only when the authoritative snapshot says playing (Launch and play).
         player.cueVideoById(state.videoId, 0);
-        if (state.playing) player.playVideo();
+        if (state.playing) {
+          player.playVideo();
+          armAutoplayBlockCheck(state.seq);
+        }
         devLogApplied("cueVideoById", state);
       } catch (err) {
         // Fallback: full load (plays) — rare API failure path only.
@@ -514,6 +558,7 @@ export function createYoutubePlayer(
       ps !== YT.PlayerState.BUFFERING
     ) {
       player.playVideo();
+      armAutoplayBlockCheck(state.seq);
     }
     if (
       !state.playing &&
@@ -572,7 +617,13 @@ export function createYoutubePlayer(
           );
           debugPlayer("error", frame, player, { ytErrorCode: event.data });
         },
-        onStateChange: () => syncControlsFromPlayer(),
+        onStateChange: (event) => {
+          // Local playback confirmed → the one-shot block check is moot.
+          if (isPlayingState(event.data)) clearAutoplayBlockCheck();
+          // Additive observer for the local media compatibility layer.
+          opts.onPlayerStateChange?.(event.data);
+          syncControlsFromPlayer();
+        },
       },
     });
     debugPlayer("constructed", frame, player);
@@ -641,10 +692,33 @@ export function createYoutubePlayer(
       if (!pendingState.playing && playingNow) player.pauseVideo();
       syncControlsFromPlayer();
     },
+    localUnlockSync(unlockState, offsetMs) {
+      // Restricted-media path ONLY (called from a trusted user gesture).
+      // One seek + one play/pause — the same single player, no loops, no
+      // Firebase. Confirmation flows back via the normal onStateChange.
+      if (!player || !ready) return;
+      serverOffsetMs = offsetMs;
+      pendingState = unlockState;
+      lastAuthPlaying = unlockState.playing;
+      const target = computeExpectedPositionSec(unlockState, Date.now() + serverOffsetMs);
+      const current = safeCurrentTime();
+      if (current !== null && Math.abs(current - target) > 0.05) {
+        player.seekTo(target, true);
+      }
+      const ps = player.getPlayerState();
+      if (unlockState.playing && !isPlayingState(ps)) {
+        player.playVideo();
+        armAutoplayBlockCheck(unlockState.seq);
+      } else if (!unlockState.playing && isPlayingState(ps)) {
+        player.pauseVideo();
+      }
+      syncControlsFromPlayer();
+    },
     dispose() {
       disposed = true;
       retrying = false;
       window.clearInterval(ticker);
+      clearAutoplayBlockCheck();
       window.removeEventListener("resize", onDevResize);
       layoutObserver?.disconnect();
       layoutObserver = null;

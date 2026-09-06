@@ -65,6 +65,10 @@ import {
 } from "./ui/components/buzz-panel";
 import { createBuzzerStage } from "./ui/components/buzzer-stage";
 import { createBuzzPopup } from "./ui/components/buzz-popup";
+import {
+  createLocalMediaCompatibilityService,
+} from "./services/localMediaCompatibilityService";
+import { createMediaUnlockCard } from "./ui/components/media-unlock-card";
 import { createPlayerQueue } from "./ui/components/player-queue";
 import {
   createVideoQueuePanel,
@@ -98,7 +102,7 @@ import { createManualScoring } from "./ui/components/manual-scoring";
 import { createScoreFeed } from "./ui/components/score-feed";
 import { renderEntryView } from "./ui/views/entry-view";
 import { renderRoomView } from "./ui/views/room-view";
-import type { ParticipantView, RoomCode, RoomData, UserId } from "./types";
+import type { ParticipantView, RoomCode, RoomData, UserId, VideoState } from "./types";
 
 function mountApp(): HTMLDivElement {
   const el = document.querySelector<HTMLDivElement>("#app");
@@ -311,16 +315,70 @@ async function enterRoom(
     videoEmptyState.append(emptyIcon, emptyTitle, emptyHint);
     view.videoColumn.append(videoEmptyState);
 
+    /* ---------------- Local media compatibility (additive, client-only) --
+       The shared Firebase playback truth is untouched: this layer only
+       receives read-only snapshots. desktop-compatible clients are fully
+       transparent — the unlock UI can never mount (dev-asserted). Restricted
+       media clients attempt the normal local sync once; only an OBSERVED
+       block (autoplay blocked / player-state mismatch) surfaces the local
+       "Tap to start" card. One trusted gesture → existing audio unlock +
+       ONE local seek/play of the SAME player. No Firebase writes, no retry
+       loops, no second player, no second AudioContext. */
+    let latestVideoState: VideoState | null = null;
+    const localMedia = createLocalMediaCompatibilityService({
+      resumeAudio: async () => {
+        // Existing single-AudioContext unlock (proceduralBuzzerAudioService).
+        const res = await unlockAudioFromUserGesture();
+        return res.status === "ready" ? "ok" : "failed";
+      },
+      syncVideo: () => {
+        // Narrow adapter: re-anchor the ONE existing player to the last
+        // authoritative snapshot (seek + play/pause exactly once).
+        if (latestVideoState) player?.localUnlockSync(latestVideoState, serverOffsetMs);
+      },
+    });
+    const mediaUnlockCard = createMediaUnlockCard(() =>
+      localMedia.unlockLocalMediaFromTrustedGesture(),
+    );
+    const unLocalMedia = localMedia.subscribe((s) => mediaUnlockCard.render(s));
+
+    /** DEV-only desktop regression guarantees (§4 of the mobile spec). */
+    function assertDesktopMediaTransparency(): void {
+      if (!import.meta.env.DEV) return;
+      const s = localMedia.getLocalMediaCompatibilityState();
+      if (s.mode !== "desktop-compatible") return;
+      const visibleGates = document.querySelectorAll(".vb-media-unlock:not([hidden])").length;
+      if (visibleGates > 0) {
+        console.error("[vb-media] unlock UI mounted in desktop-compatible mode");
+      }
+      const players = document.querySelectorAll(".vb-player").length;
+      if (players > 1) {
+        console.error(`[vb-media] ${players} YouTube players initialized (expected 1)`);
+      }
+      const kbd = (window as unknown as { __vbKeyboardListeners?: number }).__vbKeyboardListeners;
+      if (kbd !== undefined && kbd > 1) {
+        console.error(`[vb-media] ${kbd} global keyboard handlers (expected 1)`);
+      }
+    }
+
     function ensurePlayer(firstVideoId: string): void {
       if (player) return;
       player = createYoutubePlayer(firstVideoId, {
         isHost,
         onHostAction: hostActionHandler,
+        // Additive observers — the desktop sync flow itself is unchanged.
+        onPlayerStateChange: (ps) => localMedia.handleYouTubePlayerStateChange(ps),
+        onAutoplayBlocked: () => localMedia.handleYouTubeAutoplayBlocked(),
       });
       // The player section is position:absolute within the video shell, so
       // DOM order is irrelevant. NEVER insertBefore the popup region here —
       // it lives OUTSIDE the shell and would throw NotFoundError (code 8).
       view.videoColumn.append(player.root);
+      // Local unlock card: normal-flow sibling BELOW the player (restricted
+      // clients only render it after an observed block; hidden by default).
+      if (!mediaUnlockCard.root.isConnected) {
+        view.videoColumn.append(mediaUnlockCard.root);
+      }
       videoEmptyState.hidden = true;
     }
 
@@ -348,7 +406,9 @@ async function enterRoom(
     function doBuzz(): void {
       // Unlock audio synchronously within the user gesture before the RTDB transaction.
       // Do not await; user activation can expire if we await long async tasks.
-      void unlockAudioFromUserGesture().catch(() => {});
+      void unlockAudioFromUserGesture()
+        .then(() => localMedia.noteAudioStatus(getAudioStatus()))
+        .catch(() => {});
       // Double-click / repeat protection lives here AND in the transaction.
       if (buzzLock || !buzzPanel.isEnabled()) return;
       buzzLock = true;
@@ -973,6 +1033,15 @@ async function enterRoom(
 
       refreshBuzzGate();
       player?.applyRemote(state, serverOffsetMs);
+      // Local compatibility layer (read-only): desktop clients stay fully
+      // transparent; restricted clients react only to an OBSERVED block.
+      latestVideoState = vid ? state : null;
+      localMedia.handleAuthoritativePlayback({
+        playing: !!state?.playing,
+        videoId: vid,
+        seq: state?.seq ?? 0,
+      });
+      assertDesktopMediaTransparency();
       lastSyncedPos = state.currentTimeSec;
       hostPanel?.setVideoPlaying(state.playing);
 
@@ -992,6 +1061,8 @@ async function enterRoom(
         w.__vbKeyboardListeners = Math.max(0, (w.__vbKeyboardListeners ?? 1) - 1);
       }
       unKeyboard();
+      unLocalMedia();
+      mediaUnlockCard.dispose();
       unParticipants();
       unPresenceDebug();
       unScoreEvents();
