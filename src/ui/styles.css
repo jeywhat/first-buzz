@@ -1078,8 +1078,20 @@ button {
   container-type: inline-size;
 }
 
+/* The core wrapper is the grid item inside the zone: stretch it so the
+   button's percentage width resolves against a DEFINITE containing block
+   (its decorative layers are absolutely positioned → zero intrinsic size). */
+.vb-buzz-core {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+}
+
 .vb-mechanical-buzzer {
-  --buzzer-size: min(100%, 320px);
+  /* Container-query units resolve against the zone regardless of the
+     shrink-to-fit wrapper — bulletproof circular sizing. */
+  --buzzer-size: min(94cqw, 320px);
 
   position: relative;
   width: var(--buzzer-size);
