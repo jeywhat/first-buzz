@@ -54,6 +54,8 @@ export interface LocalMediaCompatibilityState {
   audio: LocalAudioPlaybackState;
   localUnlockRequired: boolean;
   localUnlockVisible: boolean;
+  /** True once THIS client performed its activation gesture (iOS overlay). */
+  localActivated: boolean;
   /** True when video is fine but game sounds still need a gesture. */
   audioHintVisible: boolean;
   lastBlockReason: LocalMediaBlockReason;
@@ -129,6 +131,12 @@ export function detectClientMediaMode(env: LocalMediaEnv = defaultLocalMediaEnv(
  * AudioContext, no Firebase.
  */
 export interface LocalMediaAdapter {
+  /**
+   * iOS/WebKit priming, called SYNCHRONOUSLY at the start of the trusted
+   * gesture: play → immediate pause on the ONE existing player registers
+   * the interaction so later Firebase-driven playVideo() calls work.
+   */
+  primeVideo(): void;
   /** Resume the existing Web Audio context (existing service). */
   resumeAudio(): Promise<"ok" | "failed">;
   /**
@@ -175,6 +183,7 @@ export function createLocalMediaCompatibilityService(
   let audio: LocalAudioPlaybackState = "unknown";
   let localUnlockRequired = false;
   let localUnlockVisible = false;
+  let localActivated = false;
   let lastBlockReason: LocalMediaBlockReason = "none";
   let lastUnlockSucceeded = false;
   let latestPlayback: AuthoritativePlaybackState | null = null;
@@ -188,6 +197,7 @@ export function createLocalMediaCompatibilityService(
       audio,
       localUnlockRequired,
       localUnlockVisible,
+      localActivated,
       // Compact "Enable game sounds" hint: only restricted clients whose
       // video is fine but whose Web Audio still needs a gesture.
       audioHintVisible:
@@ -322,8 +332,19 @@ export function createLocalMediaCompatibilityService(
     // Assigned before any read (the catch path returns early on failure).
     let audioOk: boolean;
     try {
-      // AUDIO first, synchronously within the gesture (existing service,
-      // existing single AudioContext — no new one).
+      // 1) PRIME the YouTube player SYNCHRONOUSLY within the gesture:
+      //    playVideo() → immediate pauseVideo() registers a first valid
+      //    interaction with the SAME player instance (WebKit/iOS unlock).
+      //    No Firebase writes; the authoritative flow re-syncs afterwards.
+      adapter.primeVideo();
+      // The activation gesture is recorded — the blocking overlay may hide.
+      if (!localActivated) {
+        localActivated = true;
+        emit();
+      }
+
+      // 2) AUDIO first, synchronously within the gesture (existing service,
+      //    existing single AudioContext — no new one).
       const audioRes = await adapter.resumeAudio();
       audioOk = audioRes === "ok";
       audio = audioOk ? "ready" : "locked-needs-gesture";

@@ -27,6 +27,12 @@ export interface YoutubePlayerHandles {
    * retry loop. Success is confirmed via the normal onStateChange flow.
    */
   localUnlockSync(state: VideoState, serverOffsetMs: number): void;
+  /**
+   * iOS/WebKit priming (trusted gesture ONLY): play → immediate pause
+   * registers a first valid interaction with the embed so later Firebase-
+   * driven playVideo() calls with sound are allowed. No Firebase writes.
+   */
+  primeForAutoplay(): void;
   dispose(): void;
 }
 
@@ -755,6 +761,20 @@ export function createYoutubePlayer(
         armAutoplayBlockCheck(unlockState.seq);
       } else if (!unlockState.playing && isPlayingState(ps)) {
         player.pauseVideo();
+      }
+      syncControlsFromPlayer();
+    },
+    primeForAutoplay() {
+      // iOS/WebKit unlock: playVideo() immediately followed by pauseVideo()
+      // records a first valid interaction with the SAME player instance (no
+      // second iframe, no muted-video trick). No Firebase writes; the real
+      // playback continues via the normal authoritative sync flow.
+      if (!player || !ready) return; // no player yet: activation still counts
+      try {
+        player.playVideo();
+        player.pauseVideo();
+      } catch {
+        // Player may be mid-reinit; the authoritative flow re-syncs anyway.
       }
       syncControlsFromPlayer();
     },

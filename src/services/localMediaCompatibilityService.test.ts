@@ -58,15 +58,22 @@ const paused = (seq = 7): AuthoritativePlaybackState => ({
   seq,
 });
 
-type AdapterCalls = { resumeAudio: number; syncVideo: number };
+type AdapterCalls = {
+  resumeAudio: number;
+  syncVideo: number;
+  primeVideo: number;
+};
 
 function makeService(
   env: LocalMediaEnv,
   opts: { resumeAudioResult?: "ok" | "failed" } = {},
 ) {
-  const calls: AdapterCalls = { resumeAudio: 0, syncVideo: 0 };
+  const calls: AdapterCalls = { resumeAudio: 0, syncVideo: 0, primeVideo: 0 };
   const svc = createLocalMediaCompatibilityService(
     {
+      primeVideo: () => {
+        calls.primeVideo++;
+      },
       resumeAudio: async () => {
         calls.resumeAudio++;
         return opts.resumeAudioResult ?? "ok";
@@ -320,6 +327,47 @@ describe("noteAutoplayAttempt (known gesture requirement)", () => {
     const s = svc.getLocalMediaCompatibilityState();
     expect(s.video).toBe("blocked-needs-gesture");
     expect(s.localUnlockVisible).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Activation gesture (iOS overlay)                                   */
+/* ------------------------------------------------------------------ */
+
+describe("activation gesture (iOS priming)", () => {
+  it("starts with localActivated=false for restricted clients", () => {
+    const { svc } = makeService(iphoneEnv);
+    expect(svc.getLocalMediaCompatibilityState().localActivated).toBe(false);
+  });
+
+  it("primes the player SYNCHRONOUSLY and marks the client activated", async () => {
+    const { svc, calls } = makeService(iphoneEnv);
+    svc.handleAuthoritativePlayback(playing());
+    svc.handleYouTubeAutoplayBlocked();
+    const r = await svc.unlockLocalMediaFromTrustedGesture();
+    expect(calls.primeVideo).toBe(1); // play → pause inside the gesture
+    expect(calls.syncVideo).toBe(1);
+    expect(r.video).toBe("pending");
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.localActivated).toBe(true);
+  });
+
+  it("activation completes even in a paused room (no video gate needed)", async () => {
+    const { svc, calls } = makeService(iphoneEnv);
+    svc.handleAuthoritativePlayback(paused());
+    await svc.unlockLocalMediaFromTrustedGesture();
+    expect(calls.primeVideo).toBe(1);
+    const s = svc.getLocalMediaCompatibilityState();
+    expect(s.localActivated).toBe(true);
+    expect(s.video).toBe("paused");
+    expect(s.localUnlockVisible).toBe(false);
+  });
+
+  it("never primes or activates for desktop clients", async () => {
+    const { svc, calls } = makeService(desktopEnv);
+    await svc.unlockLocalMediaFromTrustedGesture();
+    expect(calls.primeVideo).toBe(0);
+    expect(svc.getLocalMediaCompatibilityState().localActivated).toBe(false);
   });
 });
 

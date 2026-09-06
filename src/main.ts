@@ -69,6 +69,7 @@ import {
   createLocalMediaCompatibilityService,
 } from "./services/localMediaCompatibilityService";
 import { createMediaUnlockCard } from "./ui/components/media-unlock-card";
+import { createMediaActivationOverlay } from "./ui/components/media-activation-overlay";
 import { createPlayerQueue } from "./ui/components/player-queue";
 import {
   createVideoQueuePanel,
@@ -326,6 +327,9 @@ async function enterRoom(
        loops, no second player, no second AudioContext. */
     let latestVideoState: VideoState | null = null;
     const localMedia = createLocalMediaCompatibilityService({
+      // iOS/WebKit priming INSIDE the gesture: play → immediate pause on the
+      // ONE existing player (no second iframe) — no Firebase writes.
+      primeVideo: () => player?.primeForAutoplay(),
       resumeAudio: async () => {
         // Existing single-AudioContext unlock (proceduralBuzzerAudioService).
         const res = await unlockAudioFromUserGesture();
@@ -342,6 +346,16 @@ async function enterRoom(
     );
     const unLocalMedia = localMedia.subscribe((s) => mediaUnlockCard.render(s));
 
+    // iOS/mobile activation screen: BLOCKING overlay until the first
+    // activation tap (restricted clients only — never on desktop).
+    const mediaActivationOverlay = createMediaActivationOverlay(() =>
+      localMedia.unlockLocalMediaFromTrustedGesture(),
+    );
+    view.root.append(mediaActivationOverlay.root);
+    const unLocalActivation = localMedia.subscribe((s) =>
+      mediaActivationOverlay.render(s),
+    );
+
     /** DEV-only desktop regression guarantees (§4 of the mobile spec). */
     function assertDesktopMediaTransparency(): void {
       if (!import.meta.env.DEV) return;
@@ -350,6 +364,12 @@ async function enterRoom(
       const visibleGates = document.querySelectorAll(".vb-media-unlock:not([hidden])").length;
       if (visibleGates > 0) {
         console.error("[vb-media] unlock UI mounted in desktop-compatible mode");
+      }
+      const activationOverlays = document.querySelectorAll(
+        ".vb-media-activation:not([hidden])",
+      ).length;
+      if (activationOverlays > 0) {
+        console.error("[vb-media] activation overlay mounted in desktop-compatible mode");
       }
       const players = document.querySelectorAll(".vb-player").length;
       if (players > 1) {
@@ -1063,7 +1083,9 @@ async function enterRoom(
       }
       unKeyboard();
       unLocalMedia();
+      unLocalActivation();
       mediaUnlockCard.dispose();
+      mediaActivationOverlay.dispose();
       unParticipants();
       unPresenceDebug();
       unScoreEvents();
