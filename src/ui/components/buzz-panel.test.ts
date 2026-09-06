@@ -120,7 +120,8 @@ describe("canonical buzz flow", () => {
     const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
     expect(btn.disabled).toBe(true);
     expect(btn.dataset.state).toBe("buzzed");
-    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("BUZZED");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("WAITING");
+    expect(btn.getAttribute("aria-label")).toBe("Waiting for next round");
   });
 
   it("winner state comes exclusively from the round snapshot", () => {
@@ -151,6 +152,171 @@ describe("canonical buzz flow", () => {
     expect(handles.awardPoints).toBeUndefined();
     expect(handles.requestPlay).toBeUndefined();
     expect(handles.requestPause).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Host resume & cooldown states                                      */
+/* ------------------------------------------------------------------ */
+
+describe("host resume & open buzz", () => {
+  const hostCtx = (allowBuzz = true) => ({
+    playerId: "host-1",
+    viewerIsHost: true,
+    allowHostToBuzz: allowBuzz,
+    hasPendingAttempt: false,
+  });
+
+  const buzzedRound = (buzzedBy = "player-2"): RoundData =>
+    round({
+      state: "buzzed",
+      buzz: {
+        playerId: buzzedBy,
+        displayName: "Bob",
+        buzzedAt: Date.now(),
+        videoTime: 3,
+        roundNumber: 7,
+      },
+    });
+
+  function mountHost(onHostResume: () => void) {
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(buzzedRound());
+    panel.setContext(hostCtx());
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    return { panel, btn };
+  }
+
+  it("transforms the ONE buzzer into RESUME + OPEN BUZZ for the host", () => {
+    const onHostResume = vi.fn();
+    const { btn, panel } = mountHost(onHostResume);
+    expect(btn.disabled).toBe(false);
+    expect(btn.dataset.state).toBe("resume");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("RESUME");
+    expect(btn.querySelector(".vb-buzzer-key-hint")!.textContent).toBe("OPEN BUZZ");
+    expect(btn.getAttribute("aria-label")).toBe("Resume video and open next buzz round");
+    expect(panel.isResumeActionAvailable()).toBe(true);
+    // The button IS interactive — but its action is the host resume, not a
+    // normal buzz (keyboard dispatch checks isResumeActionAvailable first).
+    expect(panel.isEnabled()).toBe(true);
+  });
+
+  it("offers the resume action regardless of the host buzzing permission", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(buzzedRound());
+    panel.setContext(hostCtx(false));
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.dataset.state).toBe("resume");
+    expect(panel.isResumeActionAvailable()).toBe(true);
+  });
+
+  it("fires the canonical resume action once per click", () => {
+    const onHostResume = vi.fn();
+    const { btn } = mountHost(onHostResume);
+    btn.click();
+    expect(onHostResume).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot re-enter while the resume write is pending (rapid clicks)", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({
+      onBuzz: vi.fn(),
+      onHostResume: () => {
+        onHostResume();
+        panel.markResumePending(true); // mirrors main.ts doResume lock
+      },
+    });
+    document.body.append(panel.root);
+    panel.setRound(buzzedRound());
+    panel.setContext(hostCtx());
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    btn.click();
+    btn.click(); // second rapid click → guarded
+    expect(onHostResume).toHaveBeenCalledTimes(1);
+    expect(btn.disabled).toBe(true);
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("RESUMING…");
+    expect(btn.getAttribute("aria-label")).toBe("Resuming video and opening next buzz round");
+    expect(panel.isResumeActionAvailable()).toBe(false);
+  });
+
+  it("players never see the resume action (WAITING instead)", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(buzzedRound());
+    panel.setContext(playerCtx());
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.disabled).toBe(true);
+    expect(btn.dataset.state).toBe("buzzed");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("WAITING");
+    expect(panel.isResumeActionAvailable()).toBe(false);
+    btn.click();
+    expect(onHostResume).not.toHaveBeenCalled();
+  });
+
+  it("keeps the winner card and VIDEO PAUSED pill visible during resume", () => {
+    const { panel } = mountHost(vi.fn());
+    // Winner card + paused pill live in the status strip root.
+    const winnerCard = panel.statusRoot.querySelector<HTMLElement>(".vb-winner-card")!;
+    const pausedPill = panel.statusRoot.querySelector<HTMLElement>(".vb-paused-pill")!;
+    expect(winnerCard.hidden).toBe(false);
+    expect(pausedPill.hidden).toBe(false);
+  });
+});
+
+describe("global cooldown state", () => {
+  const cooldownRound: Partial<RoundData> = {
+    state: "cooldown",
+    cooldownStartedAt: 5_000,
+  };
+
+  it("shows GET READY disabled for players", () => {
+    const { onBuzz, panel } = mount();
+    panel.setRound(round(cooldownRound));
+    panel.setContext(playerCtx());
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.disabled).toBe(true);
+    expect(btn.dataset.state).toBe("cooldown");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("GET READY");
+    expect(btn.getAttribute("aria-label")).toBe("Get ready for the next buzz round");
+    btn.click();
+    expect(onBuzz).not.toHaveBeenCalled();
+  });
+
+  it("shows GET READY disabled for the host too (no instant re-buzz)", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(round(cooldownRound));
+    panel.setContext({
+      playerId: "host-1",
+      viewerIsHost: true,
+      allowHostToBuzz: true,
+      hasPendingAttempt: false,
+    });
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.disabled).toBe(true);
+    expect(btn.dataset.state).toBe("cooldown");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("GET READY");
+    expect(panel.isResumeActionAvailable()).toBe(false);
+    btn.click();
+    expect(onHostResume).not.toHaveBeenCalled();
+  });
+
+  it("returns to normal BUZZ once the cooldown resolves to an open round", () => {
+    const { panel } = mount();
+    panel.setRound(round(cooldownRound));
+    panel.setContext(playerCtx());
+    expect(panel.isEnabled()).toBe(false);
+    panel.setRound(round({ state: "open", number: 8 }));
+    expect(panel.isEnabled()).toBe(true);
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.disabled).toBe(false);
+    expect(btn.dataset.state).toBe("ready");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("BUZZ!");
   });
 });
 

@@ -232,6 +232,9 @@ export async function launchQueueItem(
       state: "open",
       openedAt: now,
       buzz: null,
+      // Fingerprint this round to the playback session it was opened for
+      // (stale-session guards compare against /video/videoSessionId).
+      videoSessionId: (curVideo.videoSessionId ?? 0) + 1,
     },
     [`${roomGamePath(code)}/status`]: "active",
     // Queue pointer + revision bump for client reconciliation.

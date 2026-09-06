@@ -7,18 +7,22 @@ export type GameStatus = "lobby" | "active" | "ended";
  *               host may pause/resume playback freely
  *  buzzed    -> first winner saved by the RTDB transaction; video globally
  *               paused; no score mutation; host sees resume/next-buzz controls
- *  open      -> only the HOST may reopen ("Open next buzz"): winner cleared,
- *               roundNumber incremented, scores untouched, playback unchanged
+ *  cooldown  -> host activated "Resume & open buzz": winner cleared,
+ *               roundNumber incremented, playback resumed, brief global
+ *               fairness window before anyone may buzz again
+ *  open      -> cooldown expired (or host opened the next round): buzzing
+ *               re-armed for everyone
  *
- * Typical loop: open → buzzed → (host resume ± open next) → open …
+ * Typical loop: open → buzzed → (host resume) cooldown → open …
  * A room starts with round.state = 'idle' so nobody can buzz in the lobby.
  */
-export type RoundState = "idle" | "open" | "buzzed" | "resolved" | "finished";
+export type RoundState = "idle" | "open" | "buzzed" | "cooldown" | "resolved" | "finished";
 
 export const ROUND_STATES: readonly RoundState[] = [
   "idle",
   "open",
   "buzzed",
+  "cooldown",
   "resolved",
   "finished",
 ];
@@ -47,6 +51,15 @@ export interface RoundData {
   state: RoundState;
   /** Epoch ms (serverTimestamp) when the host opened the round. */
   openedAt?: number;
+  /**
+   * Server-timestamp ms of the resume instant while state === 'cooldown'.
+   * RTDB server timestamps cannot be offset at write time, so the duration
+   * is the shared RESUME_BUZZ_COOLDOWN_MS constant compared against the
+   * client's server-clock estimate. null clears the field on expiry.
+   */
+  cooldownStartedAt?: number | null;
+  /** Playback-session fingerprint this round belongs to (staleness guard). */
+  videoSessionId?: number;
   /** Present only once someone has buzzed. */
   buzz?: Buzz | null;
   /** @deprecated legacy buzz-scoring field — read-only; never written by new flows. */

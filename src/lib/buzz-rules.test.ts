@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Buzz } from "../types";
-import { evaluateBuzz, type BuzzContext } from "./buzz-rules";
+import {
+  clampResumeBuzzCooldownMs,
+  evaluateBuzz,
+  isCooldownExpired,
+  MAX_RESUME_BUZZ_COOLDOWN_MS,
+  MIN_RESUME_BUZZ_COOLDOWN_MS,
+  RESUME_BUZZ_COOLDOWN_MS,
+  type BuzzContext,
+} from "./buzz-rules";
 
 function ctx(overrides: Partial<BuzzContext> = {}): BuzzContext {
   return {
@@ -72,5 +80,49 @@ describe("evaluateBuzz", () => {
     expect(evaluateBuzz({ state: "idle" }, ctx()).reason).toBe("waiting");
     expect(evaluateBuzz({ state: "resolved" }, ctx()).reason).toBe("round_over");
     expect(evaluateBuzz({ state: "finished" }, ctx()).reason).toBe("round_over");
+  });
+
+  it("blocks everyone during the global cooldown (host included)", () => {
+    const round = { state: "cooldown" as const, buzz: null, cooldownStartedAt: 5_000 };
+    expect(evaluateBuzz(round, ctx())).toEqual({ enabled: false, reason: "cooldown" });
+    expect(evaluateBuzz(round, ctx({ viewerIsHost: true, allowHostToBuzz: true }))).toEqual({
+      enabled: false,
+      reason: "cooldown",
+    });
+    expect(evaluateBuzz(round, ctx({ hasPendingAttempt: true })).reason).toBe("pending");
+  });
+});
+
+describe("isCooldownExpired", () => {
+  it("is not expired before the cooldown duration elapses", () => {
+    // resumed at 5_000, default 350ms window
+    expect(isCooldownExpired(5_000, 5_349)).toBe(false);
+  });
+
+  it("expires exactly at cooldownStartedAt + cooldownMs", () => {
+    expect(isCooldownExpired(5_000, 5_350)).toBe(true);
+    expect(isCooldownExpired(5_000, 6_000)).toBe(true);
+  });
+
+  it("honors a custom cooldown duration", () => {
+    expect(isCooldownExpired(5_000, 5_999, 1000)).toBe(false);
+    expect(isCooldownExpired(5_000, 6_000, 1000)).toBe(true);
+  });
+
+  it("never expires without a server time anchor", () => {
+    expect(isCooldownExpired(undefined, Number.MAX_SAFE_INTEGER)).toBe(false);
+    expect(isCooldownExpired(null, Number.MAX_SAFE_INTEGER)).toBe(false);
+    // Malformed anchors are rejected too.
+    expect(isCooldownExpired(Number.NaN, Number.MAX_SAFE_INTEGER)).toBe(false);
+  });
+
+  it("exposes the documented default and clamping bounds", () => {
+    expect(RESUME_BUZZ_COOLDOWN_MS).toBe(350);
+    expect(MIN_RESUME_BUZZ_COOLDOWN_MS).toBe(0);
+    expect(MAX_RESUME_BUZZ_COOLDOWN_MS).toBe(1000);
+    expect(clampResumeBuzzCooldownMs(-50)).toBe(0);
+    expect(clampResumeBuzzCooldownMs(500)).toBe(500);
+    expect(clampResumeBuzzCooldownMs(5000)).toBe(1000);
+    expect(clampResumeBuzzCooldownMs(Number.NaN)).toBe(RESUME_BUZZ_COOLDOWN_MS);
   });
 });

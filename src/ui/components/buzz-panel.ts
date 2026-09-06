@@ -7,6 +7,7 @@ const REASON_MESSAGES: Record<BuzzBlockReason, string> = {
   won: "You buzzed first!",
   taken: "Too late — someone already buzzed.",
   waiting: "Waiting for the host to open a round…",
+  cooldown: "Get ready — next buzz opening…",
   round_over: "This round is over.",
   host_forbidden: "Hosts cannot buzz in this room.",
 };
@@ -32,6 +33,10 @@ export interface BuzzPanelHandles {
    * snapshot lands or a new round opens.
    */
   pinMyWin(): void;
+  /** True while THIS viewer is shown the interactive host RESUME action. */
+  isResumeActionAvailable(): boolean;
+  /** Disables the buzzer while the host resume/next-round write is in flight. */
+  markResumePending(pending: boolean): void;
   isEnabled(): boolean;
   dispose(): void;
 }
@@ -39,14 +44,16 @@ export interface BuzzPanelHandles {
 /**
  * Visual states rendered as data-state on the button (derived ONLY from the
  * existing round/ctx/external state — no new decision logic):
- *   idle | ready | pending | buzzed | disabled | disconnected
- *   | host-only | round-closed | no-video
+ *   idle | ready | pending | buzzed | resume | cooldown | disabled
+ *   | disconnected | host-only | round-closed | no-video
  */
 export type BuzzerVisualState =
   | "idle"
   | "ready"
   | "pending"
   | "buzzed"
+  | "resume"
+  | "cooldown"
   | "disabled"
   | "disconnected"
   | "host-only"
@@ -57,9 +64,12 @@ export type BuzzerVisualState =
  * THE canonical buzzer: one native <button> rendered as the large mechanical
  * buzzer (shadow + dark base + red dome). Click/touch AND the global
  * Space/Enter shortcut (main.ts) both funnel into the same onBuzz() →
- * attemptBuzz() transaction. No winner decision, no Firebase writes here.
+ * attemptBuzz() transaction. While the round is 'buzzed' and the viewer is
+ * the HOST, the SAME button becomes the single "Resume & open buzz" action
+ * (mint state → onHostResume) — no double click, no second control, no new
+ * transaction. No winner decision, no Firebase writes here.
  */
-export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
+export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void }): BuzzPanelHandles {
   const winnerCard = document.createElement("div");
   winnerCard.className = "vb-winner-card";
   winnerCard.hidden = true;
@@ -171,6 +181,10 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   let enabled = false;
   let pinnedWin = false;
   let lastWinnerKey = -1;
+  /** Host resume/next-round write in flight (local, transient). */
+  let resumePending = false;
+  /** True while the button's single action IS the host resume action. */
+  let resumeMode = false;
 
   function updateWinnerMeta(): void {
     const buzz = round?.buzz;
@@ -186,9 +200,12 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   function render(): void {
     if (!round) {
       enabled = false;
+      resumeMode = false;
       btn.disabled = true;
       btn.dataset.state = "idle";
+      btn.setAttribute("aria-label", "Buzz");
       label.textContent = "BUZZ!";
+      hint.textContent = "SPACE / ENTER";
       statusLine.textContent = externalStatus ?? "";
       winnerCard.hidden = true;
       return;
@@ -201,7 +218,21 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
       pinnedWin && round.buzz?.playerId !== ctx.playerId
         ? { enabled: false as const, reason: "won" as const }
         : result;
-    enabled = effective.enabled && externalStatus === null;
+
+    // Host "Resume & open buzz": while the round is 'buzzed' the host's ONE
+    // mechanical buzzer becomes a single clear resume action (mint state).
+    // Available regardless of the host's own buzzing permission — resuming
+    // is not buzzing. The cooldown countdown is intentionally a static
+    // GET READY label: the ~350ms window is far too short for a meaningful
+    // countdown and eligibility is a server-anchored comparison, not a timer.
+    resumeMode =
+      round.state === "buzzed" &&
+      ctx.viewerIsHost &&
+      typeof opts.onHostResume === "function" &&
+      externalStatus === null &&
+      !resumePending;
+
+    enabled = resumeMode || (effective.enabled && externalStatus === null);
 
     btn.disabled = !enabled;
 
@@ -209,23 +240,46 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     // message is always duplicated in the stage live region.
     let state: BuzzerVisualState;
     let label_text: string;
+    let aria_label: string;
     if (externalStatus !== null) {
       const offline = /connection|reconnect|offline/i.test(externalStatus);
       state = offline ? "disconnected" : "no-video";
       label_text = offline ? "OFFLINE" : "NO VIDEO";
+      aria_label = offline ? "Offline" : "No video";
+      resumeMode = false;
+    } else if (resumeMode) {
+      state = "resume";
+      label_text = "RESUME";
+      aria_label = "Resume video and open next buzz round";
+    } else if (resumePending && round.state === "buzzed" && ctx.viewerIsHost) {
+      state = "resume";
+      label_text = "RESUMING…";
+      aria_label = "Resuming video and opening next buzz round";
     } else if (enabled) {
       state = "ready";
       label_text = "BUZZ!";
+      aria_label = "Buzz";
     } else {
       const LABELS: Record<BuzzBlockReason, string> = {
         pending: "BUZZING…",
         won: "YOU!",
-        taken: "BUZZED",
+        taken: "WAITING",
         waiting: "WAITING…",
+        cooldown: "GET READY",
         round_over: "CLOSED",
         host_forbidden: "HOST ONLY",
       };
       label_text = effective.reason ? LABELS[effective.reason] : "BUZZ!";
+      const ARIAS: Record<BuzzBlockReason, string> = {
+        pending: "Buzzing",
+        won: "You buzzed first",
+        taken: "Waiting for next round",
+        waiting: "Waiting for the host to open a round",
+        cooldown: "Get ready for the next buzz round",
+        round_over: "Round closed",
+        host_forbidden: "Hosts cannot buzz in this room",
+      };
+      aria_label = effective.reason ? ARIAS[effective.reason] : "Buzz";
       state =
         effective.reason === "won"
           ? "buzzed"
@@ -233,19 +287,36 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
             ? "buzzed"
             : effective.reason === "pending"
               ? "pending"
-              : effective.reason === "host_forbidden"
-                ? "host-only"
-                : "round-closed";
+              : effective.reason === "cooldown"
+                ? "cooldown"
+                : effective.reason === "host_forbidden"
+                  ? "host-only"
+                  : "round-closed";
     }
     btn.dataset.state = state;
     label.textContent = label_text;
+    btn.setAttribute("aria-label", aria_label);
+    hint.textContent = resumeMode ? "OPEN BUZZ" : "SPACE / ENTER";
     btn.classList.toggle("vb-mechanical-buzzer--enabled", enabled);
     btn.classList.toggle("vb-mechanical-buzzer--won", effective.reason === "won");
 
-    statusLine.classList.toggle("vb-buzz-status--won", effective.reason === "won");
-    statusLine.classList.toggle("vb-buzz-status--alert", effective.reason === "taken");
+    statusLine.classList.toggle(
+      "vb-buzz-status--won",
+      !resumeMode && effective.reason === "won",
+    );
+    statusLine.classList.toggle(
+      "vb-buzz-status--alert",
+      !resumeMode && effective.reason === "taken",
+    );
     statusLine.textContent =
-      externalStatus ?? (effective.reason ? REASON_MESSAGES[effective.reason] : "");
+      externalStatus ??
+      (resumeMode
+        ? "Resume the video and open the next buzz round"
+        : resumePending && ctx.viewerIsHost
+          ? "Resuming video and opening the next buzz…"
+          : effective.reason
+            ? REASON_MESSAGES[effective.reason]
+            : "");
 
     const buzz = round.buzz;
     winnerCard.hidden = !buzz;
@@ -275,7 +346,11 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
   }, 1000);
 
   btn.addEventListener("click", () => {
-    if (enabled) opts.onBuzz();
+    if (!enabled) return;
+    // One button, one current action: while the round is 'buzzed' the host's
+    // click resumes + opens the next buzz; otherwise it's the canonical buzz.
+    if (resumeMode) opts.onHostResume?.();
+    else opts.onBuzz();
   });
 
   return {
@@ -312,6 +387,15 @@ export function createBuzzPanel(opts: { onBuzz(): void }): BuzzPanelHandles {
     },
     pinMyWin() {
       pinnedWin = true;
+      render();
+    },
+    isResumeActionAvailable() {
+      // Only when the interactive RESUME action is actually on offer —
+      // never during the resume write itself.
+      return enabled && resumeMode;
+    },
+    markResumePending(pending) {
+      resumePending = pending;
       render();
     },
     isEnabled() {

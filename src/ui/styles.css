@@ -1245,6 +1245,36 @@ button {
     0 12px 8px rgb(0 0 0 / 0.45);
 }
 
+/* Host "Resume & open buzz" (round buzzed): the ONE buzzer becomes the
+   resume action — mint/green dome, clearly distinct from the red buzz dome.
+   Color/shadow only: geometry, size and position are identical so fast
+   reuse is never impaired by a state change. */
+.vb-mechanical-buzzer[data-state="resume"] .vb-buzzer-button {
+  background: radial-gradient(circle at 35% 25%, #8ff5d4 0%, #14c08e 55%, #0a6e54 100%);
+  border-color: #14532d;
+  box-shadow:
+    inset 0 4px 6px rgb(255 255 255 / 0.5),
+    inset 0 -6px 12px rgb(0 0 0 / 0.4),
+    0 10px 0 #085e48,
+    0 12px 8px rgb(0 0 0 / 0.5);
+}
+
+.vb-mechanical-buzzer[data-state="resume"] .vb-buzzer-key-hint {
+  background: rgb(6 46 35 / 0.55);
+}
+
+/* Global cooldown (GET READY): amber dome, dimmed by the disabled filter
+   above so it reads as clearly non-interactive. Geometry unchanged. */
+.vb-mechanical-buzzer[data-state="cooldown"] .vb-buzzer-button {
+  background: radial-gradient(circle at 35% 25%, #ffe066 0%, #f59f00 55%, #a85b00 100%);
+  border-color: #78350f;
+  box-shadow:
+    inset 0 4px 6px rgb(255 255 255 / 0.45),
+    inset 0 -6px 12px rgb(0 0 0 / 0.4),
+    0 10px 0 #7c3d00,
+    0 12px 8px rgb(0 0 0 / 0.45);
+}
+
 .vb-mechanical-buzzer:focus-visible {
   outline: 3px solid var(--vb-blue);
   outline-offset: 3px;

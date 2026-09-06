@@ -62,16 +62,22 @@
             ".validate": "newData.val() === 'lobby' || newData.val() === 'active' || newData.val() === 'ended'"
           },
           "round": {
-            ".write": "auth != null && (root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid || (data.child('state').val() === 'open' && !data.child('buzz').exists() && newData.child('state').val() === 'buzzed' && newData.child('buzz/playerId').val() === auth.uid && newData.child('buzz/roundNumber').val() === data.child('number').val() && (root.child('rooms/' + $roomId + '/meta/allowHostToBuzz').val() === true || root.child('rooms/' + $roomId + '/meta/hostUid').val() !== auth.uid)))",
+            ".write": "auth != null && (root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid || (data.child('state').val() === 'open' && !data.child('buzz').exists() && newData.child('state').val() === 'buzzed' && newData.child('buzz/playerId').val() === auth.uid && newData.child('buzz/roundNumber').val() === data.child('number').val() && (root.child('rooms/' + $roomId + '/meta/allowHostToBuzz').val() === true || root.child('rooms/' + $roomId + '/meta/hostUid').val() !== auth.uid)) || (data.child('state').val() === 'cooldown' && newData.child('state').val() === 'buzzed' && newData.child('number').val() === data.child('number').val() && newData.child('cooldownStartedAt').val() === data.child('cooldownStartedAt').val() && newData.child('buzz/playerId').val() === auth.uid && newData.child('buzz/roundNumber').val() === data.child('number').val() && (root.child('rooms/' + $roomId + '/meta/allowHostToBuzz').val() === true || root.child('rooms/' + $roomId + '/meta/hostUid').val() !== auth.uid)))",
             ".validate": "newData.hasChildren(['number', 'state'])",
             "number": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
             },
             "state": {
-              ".validate": "newData.val() === 'idle' || newData.val() === 'open' || newData.val() === 'buzzed' || newData.val() === 'resolved' || newData.val() === 'finished'"
+              ".validate": "newData.val() === 'idle' || newData.val() === 'open' || newData.val() === 'buzzed' || newData.val() === 'cooldown' || newData.val() === 'resolved' || newData.val() === 'finished'"
             },
             "openedAt": {
               ".validate": "newData.isNumber()"
+            },
+            "cooldownStartedAt": {
+              ".validate": "!newData.exists() || newData.isNumber()"
+            },
+            "videoSessionId": {
+              ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000)"
             },
             "result": {
               ".validate": "newData.val() === 'correct' || newData.val() === 'wrong'"

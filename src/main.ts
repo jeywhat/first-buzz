@@ -16,7 +16,14 @@ import {
 } from "./lib/players";
 import { roomPath, scoreEventsPath } from "./lib/paths";
 import { loadSavedName, saveDisplayName } from "./lib/profile";
-import { attemptBuzz, openNextRound, watchRound } from "./lib/rounds";
+import {
+  attemptBuzz,
+  completeCooldown,
+  openNextRound,
+  resumeAndOpenNextRound,
+  watchRound,
+} from "./lib/rounds";
+import { RESUME_BUZZ_COOLDOWN_MS } from "./lib/buzz-rules";
 import { resetScores } from "./lib/moderation";
 import {
   adjustPlayerScore,
@@ -331,7 +338,11 @@ async function enterRoom(
 
     /* Buzzer */
     let buzzLock = false;
-    const buzzPanel = createBuzzPanel({ onBuzz: () => doBuzz() });
+    let resumeLock = false;
+    const buzzPanel = createBuzzPanel({
+      onBuzz: () => doBuzz(),
+      onHostResume: () => doResume(),
+    });
     stage.mountBuzzPanel(buzzPanel.root, buzzPanel.statusRoot, buzzPanel.feedbackRoot);
 
     function doBuzz(): void {
@@ -360,6 +371,40 @@ async function enterRoom(
           buzzLock = false;
           buzzPanel.markPending(false);
           buzzPopup.setPending(false);
+        });
+    }
+
+    /**
+     * THE canonical host action: resume synchronized playback AND open the
+     * next buzz round in one clear step. Used by the host's main mechanical
+     * buzzer (while the round is 'buzzed') AND by every host control labelled
+     * "Resume and open next buzz" (host panel + buzz popup) — never a second
+     * write path. Guarantees:
+     *   - exactly one round transition (RTDB tx guard: only 'buzzed' commits;
+     *     rapid clicks / repeats are also blocked by resumeLock);
+     *   - roundNumber incremented exactly once, winner cleared, scores
+     *     untouched, video/queue/videoSessionId untouched;
+     *   - exactly ONE playback write (requestPlay, seq+1) and only when the
+     *     round transaction actually committed;
+     *   - a server-anchored global buzz cooldown (350ms) before anyone —
+     *     host included — may buzz again.
+     */
+    function doResume(): void {
+      if (resumeLock) return; // rapid pointer/keyboard events: one transition
+      if (!isHost) return; // UX guard; Firebase rules are the real authority
+      if (latestRound?.state !== "buzzed") return; // never while open/cooldown
+      if (!activeVideoId) return; // nothing to resume
+      resumeLock = true;
+      buzzPanel.markResumePending(true);
+      resumeAndOpenNextRound(code, latestVideoSessionId)
+        .then((res) => {
+          if (!res.committed) return; // duplicate or stale → no playback write
+          return requestPlay(code, uid, player?.getPosition() ?? 0);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          resumeLock = false;
+          buzzPanel.markResumePending(false);
         });
     }
 
@@ -440,17 +485,12 @@ async function enterRoom(
       // Clear the winner + arm buzzers. No score change, no playback change.
       onOpenNext: () =>
         runModeration(() => openNextRound(code), "Next buzz opened — buzzers armed"),
-      // Coherent combo: (1) open next buzz, (2) resume playback.
-      // Exactly one video command; the prior winner key is already
-      // processed and its round node is replaced, so nothing replays.
-      onResumeAndNext: () =>
-        runModeration(
-          async () => {
-            await openNextRound(code);
-            await requestPlay(code, uid, player?.getPosition() ?? 0);
-          },
-          "Next buzz opened — video resumed",
-        ),
+      // Coherent combo: the ONE canonical doResume() path — (1) close the
+      // buzzed round into a new cooldown round (roundNumber+1, winner
+      // cleared), (2) resume playback via exactly one requestPlay. The prior
+      // winner key is already processed and the round node is replaced, so
+      // nothing replays. Shared by the buzzer, the host panel and the popup.
+      onResumeAndNext: () => doResume(),
     };
     buzzPopup.setActions(postBuzzActions);
 
@@ -587,13 +627,25 @@ async function enterRoom(
         console.warn(`[vb-layout] ${w.__vbKeyboardListeners} global keyboard listeners registered`);
       }
     }
+    /* Keyboard shortcuts (Space / Enter / NumpadEnter).
+       One dispatcher, two canonical actions: while the round is 'buzzed' the
+       HOST's shortcut runs doResume(); otherwise doBuzz(). No double
+       invocation: when the buzzer button itself is focused, keyboard-buzz
+       excludes BUTTON (native click handles it exactly once); otherwise this
+       global listener fires exactly once per keydown and the doBuzz/doResume
+       locks guard re-entry. In cooldown / offline / no-video / pending states
+       neither action is available, so the shortcut does nothing. */
     const unKeyboard = setupKeyboardBuzz({
       getState: () => ({
-        buzzEnabled: buzzPanel.isEnabled(),
+        buzzEnabled:
+          buzzPanel.isEnabled() || buzzPanel.isResumeActionAvailable(),
         connected: localConnected,
         modalOpen,
       }),
-      onBuzz: () => doBuzz(),
+      onBuzz: () => {
+        if (buzzPanel.isResumeActionAvailable()) doResume();
+        else doBuzz();
+      },
       onDebug: import.meta.env.DEV ? (msg) => console.debug(msg) : undefined,
     });
 
@@ -602,6 +654,8 @@ async function enterRoom(
     let serverOffsetMs = 0;
     let stopHeartbeat: (() => void) | null = null;
     let lastAutoPausedRound = -1;
+    // Cooldown instance already handed to completeCooldown (host only).
+    let lastCooldownKey = "";
     let latestRound: RoomData["game"]["round"] | null = null;
 
     let buzzGateActive = false;
@@ -764,6 +818,35 @@ async function enterRoom(
       view.setRoundStatus(round.state);
       resolveWinnerColor();
       stage.setRoomData(participants, round, uid);
+
+      // Global cooldown expiry (host only): normalize the round back to
+      // 'open' once the SERVER-anchored window elapses. Derived from this
+      // live authoritative snapshot (reconnect-safe), not from a pre-armed
+      // timer as a source of truth. completeCooldown re-verifies state
+      // inside its transaction, so stale timers (e.g. video changed during
+      // cooldown) are harmless no-ops. Even if the host tab vanishes, the
+      // attemptBuzz transaction still accepts cooldown rounds past expiry.
+      if (
+        isHost &&
+        round.state === "cooldown" &&
+        typeof round.cooldownStartedAt === "number"
+      ) {
+        const key = `${round.number}:${round.cooldownStartedAt}`;
+        if (key !== lastCooldownKey) {
+          lastCooldownKey = key;
+          const remainingMs =
+            round.cooldownStartedAt + RESUME_BUZZ_COOLDOWN_MS -
+            (Date.now() + serverOffsetMs);
+          if (remainingMs <= 0) {
+            void completeCooldown(code).catch(() => undefined);
+          } else {
+            window.setTimeout(
+              () => void completeCooldown(code).catch(() => undefined),
+              remainingMs,
+            );
+          }
+        }
+      }
 
       if (round.state === "open" && !round.buzz) {
         roundSessionByNumber.set(round.number, activeSessionFingerprint);
