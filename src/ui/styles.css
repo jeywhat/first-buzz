@@ -2624,17 +2624,15 @@ button {
     max-width: 100%;
   }
 
-  /* Buzz popup: notification over the TOP of the video. It slides in like
-     a received message and disappears when the host resumes (the round
-     watcher clears it as soon as the round leaves 'buzzed'). The region
-   stays mounted in normal flow on desktop widths. */
-  .vb-video-card {
-    position: relative;
-  }
-
+  /* Buzz popup: notification "received message" attached right BELOW the
+     one-line topbar, spanning the page width (aligned with its 10px side
+     padding). It intentionally overlays the video and the video column.
+     It disappears when the host resumes (the round watcher clears the
+     popup as soon as the round leaves 'buzzed'). Empty region is
+     click-through; desktop stays normal-flow. */
   .vb-buzz-popup-region {
-    position: absolute;
-    top: 10px;
+    position: fixed;
+    top: 62px; /* one-line topbar height (8+38+8) + 2px border + 6px gap */
     left: 10px;
     right: 10px;
     z-index: 30;
