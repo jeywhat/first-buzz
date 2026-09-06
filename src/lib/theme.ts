@@ -83,6 +83,6 @@ export function createThemeToggle(): HTMLButtonElement {
 function el(): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
-  b.className = "vb-sound-toggle vb-theme-toggle";
+  b.className = "vb-icon-toggle vb-theme-toggle";
   return b;
 }

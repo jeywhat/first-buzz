@@ -21,8 +21,6 @@ export interface RoomViewHandles {
   settingsContent: HTMLElement;
   /** Video meta chip (shows queue item label / round state). */
   titleChip: HTMLElement;
-  /** Top-bar sound toggle (wired to the canonical audio service in main.ts). */
-  soundToggle: HTMLButtonElement;
   /** Header identity elements (current user). */
   identity: {
     root: HTMLElement;

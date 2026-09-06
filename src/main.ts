@@ -70,7 +70,6 @@ import {
 } from "./services/localMediaCompatibilityService";
 import { createMediaUnlockCard } from "./ui/components/media-unlock-card";
 import { createMediaActivationOverlay } from "./ui/components/media-activation-overlay";
-import { createPlayerQueue } from "./ui/components/player-queue";
 import {
   createVideoQueuePanel,
   type VideoQueuePanelHandles,
@@ -81,12 +80,10 @@ import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
 
 import {
   clearProcessedEventKeys,
-  getAudioPreferences,
   getAudioStatus,
   markEventProcessed,
   normalizeProfileId,
   playWinnerSound,
-  setMuted,
   stopActiveSounds,
   unlockAudioFromUserGesture,
 } from "./services/proceduralBuzzerAudioService";
@@ -520,20 +517,9 @@ async function enterRoom(
       }
     });
 
-    /* Top-bar sound toggle — canonical audio service, synced with the panel. */
-    const syncSoundToggle = (): void => {
-      const muted = getAudioPreferences().muted;
-      view.soundToggle.textContent = muted ? "🔇" : "🔊";
-      view.soundToggle.setAttribute("aria-pressed", String(!muted));
-      soundPanel.setMutedState(muted);
-    };
-    view.soundToggle.addEventListener("click", () => {
-      // Gesture: also unlocks audio so unmuting works on first click.
-      void unlockAudioFromUserGesture().catch(() => {});
-      setMuted(!getAudioPreferences().muted);
-      syncSoundToggle();
-    });
-    syncSoundToggle();
+    /* Mute/volume live canonically in the ⚙️ Settings sound panel (sound-panel.ts).
+       The former top-bar sound toggle was removed: it was redundant and
+       visually confusable with the identically styled theme toggle. */
 
     /* Host moderation */
     let moderating = false;
@@ -813,10 +799,6 @@ async function enterRoom(
 
     /* ---------------- Video queue (canonical, host-managed) ---------------- */
 
-    // Player read-only queue summary — scoreboard section of the sidebar.
-    const playerQueue = createPlayerQueue();
-    view.sidebar.insertBefore(playerQueue.root, view.sidebar.querySelector(".vb-settings-drawer"));
-
     let latestQueueSnapshot: VideoQueueSnapshot | null = null;
 
     function launchById(itemId: string, autoplay: boolean): Promise<void> {
@@ -858,8 +840,6 @@ async function enterRoom(
       const legacyActiveVideoId = exists ? "" : videoId;
       const snap = (exists ? rawSnap : {}) as VideoQueueSnapshot;
       latestQueueSnapshot = snap;
-      const v = resolveQueueView(snap, legacyActiveVideoId);
-      playerQueue.setView(v);
       hostPanel_?.setSnapshot(snap, legacyActiveVideoId);
     });
 
@@ -1098,7 +1078,6 @@ async function enterRoom(
       player?.dispose();
       buzzPanel.dispose();
       stage.dispose();
-      playerQueue.root.remove();
       hostPanel_?.dispose();
       soundPanel.dispose();
       stopActiveSounds();

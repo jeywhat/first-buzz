@@ -21,7 +21,6 @@ import type { ParticipantView } from "../../types/participant";
  *         (arenaSlot)             — Buzzer stage w/ mechanical buzzer
  *         participants            — Players panel: presence, avatar, score,
  *                                   host-only −/+ adjustments (single source)
- *         playerQueue slot        — read-only queue summary
  *         (host tools appended by main.ts)
  *         settings drawer         — sound + diagnostics + advanced scoring
  */
@@ -85,7 +84,8 @@ export function renderRoomView(opts: {
   }
 
   copyBtn.addEventListener("click", () => {
-    const link = `${location.origin}${location.pathname}?room=${opts.code}`;
+    // Canonical room URL — no legacy ?room= query duplication.
+    const link = `${location.origin}/room/${opts.code}`;
     navigator.clipboard.writeText(link).then(
       () => flash("OK!"),
       () => flash("…"),
@@ -97,15 +97,6 @@ export function renderRoomView(opts: {
 
   const headerRight = document.createElement("div");
   headerRight.className = "vb-topbar-right";
-
-  // Sound toggle (reference: mute control lives in the top bar). The click
-  // handler is wired in main.ts against the canonical audio service.
-  const soundToggle = document.createElement("button");
-  soundToggle.className = "vb-sound-toggle";
-  soundToggle.type = "button";
-  soundToggle.textContent = "🔊";
-  soundToggle.setAttribute("aria-label", "Toggle game sounds");
-  soundToggle.setAttribute("aria-pressed", "true");
 
   const badge = renderConnectionBadge();
 
@@ -148,7 +139,7 @@ export function renderRoomView(opts: {
   leaveBtn.setAttribute("aria-label", "Leave room");
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
-  headerRight.append(soundToggle, createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
+  headerRight.append(createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
 
   // TOP 3 podium — header MIDDLE, DESKTOP ONLY (CSS shows it at ≥1100px;
   // hidden on every narrower viewport). Rendered from the participants
@@ -212,9 +203,6 @@ export function renderRoomView(opts: {
     onAdjust: (target, delta) => opts.onAdjustScore(target.uid, delta),
   });
 
-  const playerQueueSlot = document.createElement("div");
-  playerQueueSlot.className = "vb-player-queue-slot";
-
   const settings = document.createElement("details");
   settings.className = "vb-settings-drawer";
   const settingsSummary = document.createElement("summary");
@@ -223,7 +211,7 @@ export function renderRoomView(opts: {
   settingsContent.className = "vb-settings-content";
   settings.append(settingsSummary, settingsContent);
 
-  sidebar.append(arenaSlot, participants.root, playerQueueSlot, settings);
+  sidebar.append(arenaSlot, participants.root, settings);
 
   mainArea.append(videoColumn, sidebar);
   root.append(header, connBanner, mainArea);
@@ -235,7 +223,6 @@ export function renderRoomView(opts: {
     arenaSlot,
     settingsContent,
     titleChip,
-    soundToggle,
     identity: { avatar: identityAvatar, name: identityName, score: identityScore, root: identity },
     sidebar,
     setParticipants: (list: ParticipantView[]) => {
