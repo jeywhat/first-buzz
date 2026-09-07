@@ -1,4 +1,10 @@
-import { evaluateBuzz, type BuzzBlockReason, type BuzzContext } from "../../lib/buzz-rules";
+import {
+  evaluateBuzz,
+  isResumeDelayExpired,
+  RESUME_DELAY_MS,
+  type BuzzBlockReason,
+  type BuzzContext,
+} from "../../lib/buzz-rules";
 import type { RoundData } from "../../types";
 
 const REASON_MESSAGES: Record<BuzzBlockReason, string> = {
@@ -32,6 +38,8 @@ export interface BuzzPanelHandles {
   isResumeActionAvailable(): boolean;
   /** Disables the buzzer while the host resume/next-round write is in flight. */
   markResumePending(pending: boolean): void;
+  /** Feeds the server-clock offset so the post-buzz resume delay is server-anchored. */
+  setServerClockOffset(offsetMs: number): void;
   isEnabled(): boolean;
   dispose(): void;
 }
@@ -39,8 +47,8 @@ export interface BuzzPanelHandles {
 /**
  * Visual states rendered as data-state on the button (derived ONLY from the
  * existing round/ctx/external state — no new decision logic):
- *   idle | ready | pending | buzzed | resume | cooldown | disabled
- *   | disconnected | host-only | round-closed | no-video
+ *   idle | ready | pending | buzzed | resume | resume-wait | cooldown
+ *   | disabled | disconnected | host-only | round-closed | no-video
  */
 export type BuzzerVisualState =
   | "idle"
@@ -48,6 +56,7 @@ export type BuzzerVisualState =
   | "pending"
   | "buzzed"
   | "resume"
+  | "resume-wait"
   | "cooldown"
   | "disabled"
   | "disconnected"
@@ -152,11 +161,27 @@ export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void })
   let resumePending = false;
   /** True while the button's single action IS the host resume action. */
   let resumeMode = false;
+  /** Client estimate of the server clock offset (ms) — see buzz-rules. */
+  let serverClockOffsetMs = 0;
+  /** One-shot re-render when the post-buzz resume delay expires. */
+  let resumeDelayTimer = 0;
+
+  const serverNowEstimate = (): number => Date.now() + serverClockOffsetMs;
+
+  /** Remaining host-resume lockout (ms) for the current buzzed round. */
+  function resumeDelayRemainingMs(currentRound: RoundData): number {
+    if (currentRound.state !== "buzzed") return 0;
+    const startedAt = currentRound.buzz?.buzzedAt;
+    if (isResumeDelayExpired(startedAt, serverNowEstimate())) return 0;
+    return (startedAt as number) + RESUME_DELAY_MS - serverNowEstimate();
+  }
 
   function render(): void {
     if (!round) {
       enabled = false;
       resumeMode = false;
+      window.clearTimeout(resumeDelayTimer);
+      resumeDelayTimer = 0;
       btn.disabled = true;
       btn.dataset.state = "idle";
       btn.setAttribute("aria-label", "Buzz");
@@ -180,12 +205,18 @@ export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void })
     // is not buzzing. The cooldown countdown is intentionally a static
     // GET READY label: the ~350ms window is far too short for a meaningful
     // countdown and eligibility is a server-anchored comparison, not a timer.
+    //
+    // Post-buzz lockout: for RESUME_DELAY_MS after a buzz lands the resume
+    // action is withheld (WAIT state) so the room gets a beat to see WHO
+    // buzzed before the host can wipe the popup and restart playback.
+    const delayRemaining = resumeDelayRemainingMs(round);
     resumeMode =
       round.state === "buzzed" &&
       ctx.viewerIsHost &&
       typeof opts.onHostResume === "function" &&
       externalStatus === null &&
-      !resumePending;
+      !resumePending &&
+      delayRemaining === 0;
 
     enabled = resumeMode || (effective.enabled && externalStatus === null);
 
@@ -206,6 +237,18 @@ export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void })
       state = "resume";
       label_text = "RESUME";
       aria_label = "Resume video and open next buzz round";
+    } else if (
+      delayRemaining > 0 &&
+      round.state === "buzzed" &&
+      ctx.viewerIsHost &&
+      externalStatus === null &&
+      !resumePending
+    ) {
+      // Post-buzz lockout: the resume action exists but is withheld for
+      // RESUME_DELAY_MS so the room sees WHO buzzed before playback restarts.
+      state = "resume-wait";
+      label_text = "WAIT";
+      aria_label = "Resume unlocks in a second";
     } else if (resumePending && round.state === "buzzed" && ctx.viewerIsHost) {
       state = "resume";
       label_text = "RESUMING…";
@@ -267,11 +310,24 @@ export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void })
       externalStatus ??
       (resumeMode
         ? "Resume the video and open the next buzz round"
-        : resumePending && ctx.viewerIsHost
-          ? "Resuming video and opening the next buzz…"
-          : effective.reason
-            ? REASON_MESSAGES[effective.reason]
-            : "");
+        : delayRemaining > 0 && round.state === "buzzed" && ctx.viewerIsHost
+          ? "Resume unlocks in a second…"
+          : resumePending && ctx.viewerIsHost
+            ? "Resuming video and opening the next buzz…"
+            : effective.reason
+              ? REASON_MESSAGES[effective.reason]
+              : "");
+
+    // One-shot re-render when the post-buzz lockout expires so the host's
+    // button flips WAIT → RESUME without any further snapshot arriving.
+    window.clearTimeout(resumeDelayTimer);
+    resumeDelayTimer = 0;
+    if (delayRemaining > 0 && round.state === "buzzed" && ctx.viewerIsHost) {
+      resumeDelayTimer = window.setTimeout(() => {
+        resumeDelayTimer = 0;
+        render();
+      }, delayRemaining + 25);
+    }
   }
 
   btn.addEventListener("click", () => {
@@ -316,11 +372,17 @@ export function createBuzzPanel(opts: { onBuzz(): void; onHostResume?(): void })
       resumePending = pending;
       render();
     },
+    setServerClockOffset(offsetMs) {
+      if (serverClockOffsetMs === offsetMs) return;
+      serverClockOffsetMs = offsetMs;
+      render();
+    },
     isEnabled() {
       return enabled;
     },
     dispose() {
-      // No timers of its own — the button lifecycle is the DOM's.
+      window.clearTimeout(resumeDelayTimer);
+      resumeDelayTimer = 0;
     },
   };
 }

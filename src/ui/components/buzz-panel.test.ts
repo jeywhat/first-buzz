@@ -173,7 +173,9 @@ describe("host resume & open buzz", () => {
       buzz: {
         playerId: buzzedBy,
         displayName: "Bob",
-        buzzedAt: Date.now(),
+        // Well past the post-buzz resume lockout so these tests exercise the
+        // UNLOCKED resume flow (the lockout itself has dedicated tests below).
+        buzzedAt: Date.now() - 10_000,
         videoTime: 3,
         roundNumber: 7,
       },
@@ -265,6 +267,110 @@ describe("host resume & open buzz", () => {
       expect(panel.root.querySelector(sel)).toBeNull();
     }
     expect(panel.root.querySelectorAll("button").length).toBe(1);
+  });
+});
+
+describe("post-buzz resume lockout (host cannot resume for 1s)", () => {
+  const hostCtx = {
+    playerId: "host-1",
+    viewerIsHost: true,
+    allowHostToBuzz: false,
+    hasPendingAttempt: false,
+  };
+
+  function mountFreshBuzz(onHostResume: () => void) {
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(
+      round({
+        state: "buzzed",
+        buzz: {
+          playerId: "player-2",
+          displayName: "Bob",
+          buzzedAt: Date.now(), // just landed → lockout active
+          videoTime: 3,
+          roundNumber: 7,
+        },
+      }),
+    );
+    panel.setContext(hostCtx);
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    return { panel, btn };
+  }
+
+  it("withholds the resume action (WAIT) right after a buzz lands", () => {
+    const onHostResume = vi.fn();
+    const { btn, panel } = mountFreshBuzz(onHostResume);
+    expect(btn.disabled).toBe(true);
+    expect(btn.dataset.state).toBe("resume-wait");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("WAIT");
+    expect(btn.getAttribute("aria-label")).toBe("Resume unlocks in a second");
+    expect(panel.isResumeActionAvailable()).toBe(false);
+    btn.click();
+    expect(onHostResume).not.toHaveBeenCalled();
+  });
+
+  it("flips WAIT → RESUME once the lockout expires (one-shot re-render)", () => {
+    vi.useFakeTimers();
+    try {
+      const onHostResume = vi.fn();
+      const { btn, panel } = mountFreshBuzz(onHostResume);
+      expect(btn.dataset.state).toBe("resume-wait");
+      vi.advanceTimersByTime(1_100);
+      expect(btn.disabled).toBe(false);
+      expect(btn.dataset.state).toBe("resume");
+      expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("RESUME");
+      expect(panel.isResumeActionAvailable()).toBe(true);
+      btn.click();
+      expect(onHostResume).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("players never see the lockout state (WAITING instead)", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(
+      round({
+        state: "buzzed",
+        buzz: {
+          playerId: "player-2",
+          displayName: "Bob",
+          buzzedAt: Date.now(),
+          videoTime: 3,
+          roundNumber: 7,
+        },
+      }),
+    );
+    panel.setContext(playerCtx());
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.dataset.state).toBe("buzzed");
+    expect(btn.querySelector(".vb-buzzer-text")!.textContent).toBe("WAITING");
+    expect(panel.isResumeActionAvailable()).toBe(false);
+  });
+
+  it("an old buzz snapshot arrives already unlocked (late join / refresh)", () => {
+    const onHostResume = vi.fn();
+    const panel = createBuzzPanel({ onBuzz: vi.fn(), onHostResume });
+    document.body.append(panel.root);
+    panel.setRound(
+      round({
+        state: "buzzed",
+        buzz: {
+          playerId: "player-2",
+          displayName: "Bob",
+          buzzedAt: Date.now() - 60_000,
+          videoTime: 3,
+          roundNumber: 7,
+        },
+      }),
+    );
+    panel.setContext(hostCtx);
+    const btn = panel.root.querySelector<HTMLButtonElement>("button")!;
+    expect(btn.dataset.state).toBe("resume");
+    expect(panel.isResumeActionAvailable()).toBe(true);
   });
 });
 

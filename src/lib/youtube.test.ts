@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { extractVideoId } from "./youtube";
+import {
+  clampVolume,
+  extractVideoId,
+  MAX_VOLUME,
+  MIN_VOLUME,
+  stepVolume,
+  VOLUME_STEP,
+} from "./youtube";
+
+describe("local video volume helpers", () => {
+  it("clamps values into the YT API 0..100 range", () => {
+    expect(clampVolume(-5)).toBe(MIN_VOLUME);
+    expect(clampVolume(0)).toBe(0);
+    expect(clampVolume(37.4)).toBe(37);
+    expect(clampVolume(100)).toBe(MAX_VOLUME);
+    expect(clampVolume(150)).toBe(MAX_VOLUME);
+    expect(clampVolume(Number.NaN)).toBe(MAX_VOLUME);
+  });
+
+  it("steps the volume up and down by VOLUME_STEP", () => {
+    expect(VOLUME_STEP).toBe(10);
+    expect(stepVolume(100, -VOLUME_STEP)).toBe(90);
+    expect(stepVolume(90, VOLUME_STEP)).toBe(100);
+    expect(stepVolume(5, VOLUME_STEP)).toBe(15);
+  });
+
+  it("never steps outside the 0..100 range", () => {
+    expect(stepVolume(0, -VOLUME_STEP)).toBe(0);
+    expect(stepVolume(100, VOLUME_STEP)).toBe(100);
+    expect(stepVolume(Number.NaN, VOLUME_STEP)).toBe(100);
+  });
+});
 
 describe("extractVideoId", () => {
   it("parses standard watch URLs", () => {

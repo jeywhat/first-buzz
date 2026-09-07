@@ -4,9 +4,11 @@ import {
   clampResumeBuzzCooldownMs,
   evaluateBuzz,
   isCooldownExpired,
+  isResumeDelayExpired,
   MAX_RESUME_BUZZ_COOLDOWN_MS,
   MIN_RESUME_BUZZ_COOLDOWN_MS,
   RESUME_BUZZ_COOLDOWN_MS,
+  RESUME_DELAY_MS,
   type BuzzContext,
 } from "./buzz-rules";
 
@@ -90,6 +92,33 @@ describe("evaluateBuzz", () => {
       reason: "cooldown",
     });
     expect(evaluateBuzz(round, ctx({ hasPendingAttempt: true })).reason).toBe("pending");
+  });
+});
+
+describe("isResumeDelayExpired", () => {
+  it("is NOT expired during the post-buzz lockout window", () => {
+    // buzzed at 5_000, default 1000ms lockout
+    expect(isResumeDelayExpired(5_000, 5_999)).toBe(false);
+  });
+
+  it("expires exactly at buzzedAt + RESUME_DELAY_MS", () => {
+    expect(isResumeDelayExpired(5_000, 6_000)).toBe(true);
+    expect(isResumeDelayExpired(5_000, 7_500)).toBe(true);
+  });
+
+  it("honors a custom delay duration", () => {
+    expect(isResumeDelayExpired(5_000, 5_100, 250)).toBe(false);
+    expect(isResumeDelayExpired(5_000, 5_250, 250)).toBe(true);
+  });
+
+  it("fails OPEN on a missing or invalid anchor (host never locked out)", () => {
+    expect(isResumeDelayExpired(undefined, Number.MIN_SAFE_INTEGER)).toBe(true);
+    expect(isResumeDelayExpired(null, Number.MIN_SAFE_INTEGER)).toBe(true);
+    expect(isResumeDelayExpired(Number.NaN, Number.MIN_SAFE_INTEGER)).toBe(true);
+  });
+
+  it("exposes the documented default delay", () => {
+    expect(RESUME_DELAY_MS).toBe(1000);
   });
 });
 

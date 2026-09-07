@@ -19,6 +19,37 @@ export type BuzzBlockReason =
   | "host_forbidden";
 
 /* ------------------------------------------------------------------ */
+/*  Post-buzz resume delay (host lockout)                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How long the host's "Resume & open buzz" action stays locked after a buzz
+ * lands (round.state === 'buzzed'). Gives the room a beat to see WHO buzzed
+ * before the host can wipe the popup and restart playback.
+ */
+export const RESUME_DELAY_MS = 1000;
+
+/**
+ * Pure gate deciding whether the host resume action has unlocked after a
+ * buzz. Same server-anchored pattern as isCooldownExpired: the buzz stores
+ * the SERVER time (`buzz.buzzedAt`) and the client compares its ESTIMATED
+ * server clock — local clocks never decide anything.
+ *
+ * Fail-open on a missing/invalid anchor: a buzzed round without a readable
+ * `buzzedAt` must never permanently lock the host out of resuming.
+ */
+export function isResumeDelayExpired(
+  buzzedAt: number | null | undefined,
+  estimatedServerNow: number,
+  delayMs: number = RESUME_DELAY_MS,
+): boolean {
+  if (typeof buzzedAt !== "number" || !Number.isFinite(buzzedAt)) {
+    return true; // no anchor -> never lock the host out
+  }
+  return estimatedServerNow >= buzzedAt + delayMs;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Global fairness cooldown                                           */
 /* ------------------------------------------------------------------ */
 

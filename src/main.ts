@@ -23,7 +23,10 @@ import {
   resumeAndOpenNextRound,
   watchRound,
 } from "./lib/rounds";
-import { RESUME_BUZZ_COOLDOWN_MS } from "./lib/buzz-rules";
+import {
+  isResumeDelayExpired,
+  RESUME_BUZZ_COOLDOWN_MS,
+} from "./lib/buzz-rules";
 import { resetScores } from "./lib/moderation";
 import {
   adjustPlayerScore,
@@ -471,6 +474,17 @@ async function enterRoom(
       if (resumeLock) return; // rapid pointer/keyboard events: one transition
       if (!isHost) return; // UX guard; Firebase rules are the real authority
       if (latestRound?.state !== "buzzed") return; // never while open/cooldown
+      // Post-buzz lockout: the host cannot resume for RESUME_DELAY_MS after
+      // a buzz lands (server-anchored comparison, same rule as the buzzer
+      // panel + popup UI). Defense in depth: the UI gates first.
+      if (
+        !isResumeDelayExpired(
+          latestRound.buzz?.buzzedAt,
+          Date.now() + serverOffsetMs,
+        )
+      ) {
+        return;
+      }
       if (!activeVideoId) return; // nothing to resume
       resumeLock = true;
       buzzPanel.markResumePending(true);
@@ -773,6 +787,8 @@ async function enterRoom(
     const unOffset = watchServerTimeOffset((ms) => {
       serverOffsetMs = ms;
       diagnostics.setServerOffset(ms);
+      // Keeps the post-buzz resume lockout server-anchored (buzz-rules).
+      buzzPanel.setServerClockOffset(ms);
     });
     diagnostics.setAuthUid(uid);
 

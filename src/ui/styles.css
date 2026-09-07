@@ -914,6 +914,51 @@ button {
   white-space: nowrap;
 }
 
+/* ---------- Local volume control (host row + player overlay) ----------
+   Loudness is per-client only (never synced): the host variant sits inline
+   in the playback controls row; the player variant floats at the video's
+   bottom-right above the shield. */
+.vb-volume {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vb-volume .vb-volume__btn {
+  flex: none;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.vb-volume__level {
+  min-width: 3.2em;
+  text-align: center;
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+.vb-volume--floating {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: linear-gradient(
+    to top,
+    rgba(15, 23, 42, 0.92),
+    rgba(15, 23, 42, 0.55)
+  );
+}
+
 /* Error overlay — created only while active, removed entirely otherwise. */
 .vb-video-error {
   position: absolute;
@@ -1543,9 +1588,11 @@ button {
   background: rgb(6 46 35 / 0.55);
 }
 
-/* Global cooldown (GET READY): amber dome, dimmed by the disabled filter
-   above so it reads as clearly non-interactive. Geometry unchanged. */
-.vb-mechanical-buzzer[data-state="cooldown"] .vb-buzzer-button {
+/* Global cooldown (GET READY) + post-buzz resume lockout (WAIT): amber
+   dome, dimmed by the disabled filter above so it reads as clearly
+   non-interactive. Geometry unchanged. */
+.vb-mechanical-buzzer[data-state="cooldown"] .vb-buzzer-button,
+.vb-mechanical-buzzer[data-state="resume-wait"] .vb-buzzer-button {
   background: radial-gradient(circle at 35% 25%, #ffe066 0%, #f59f00 55%, #a85b00 100%);
   border-color: #78350f;
   box-shadow:

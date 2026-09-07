@@ -1,4 +1,5 @@
 import { formatTime } from "./youtube-player";
+import { RESUME_DELAY_MS } from "../../lib/buzz-rules";
 import type { UserId } from "../../types/common";
 
 export interface BuzzPopupActions {
@@ -75,6 +76,8 @@ export function createBuzzPopup(): BuzzPopupHandles {
   let metaAnchor: { buzzedAt: number; serverOffsetMs: number } | null = null;
   let metaTime: HTMLElement | null = null;
   let metaTicker: number | null = null;
+  /** One-shot enable of the host resume button after the post-buzz lockout. */
+  let resumeEnableTimer: number | null = null;
 
   function devLog(...args: unknown[]): void {
     if (import.meta.env.DEV) console.debug("[buzz-popup]", ...args);
@@ -134,6 +137,10 @@ export function createBuzzPopup(): BuzzPopupHandles {
     card = null;
     pendingCard = null;
     stopMetaTicker();
+    if (resumeEnableTimer !== null) {
+      window.clearTimeout(resumeEnableTimer);
+      resumeEnableTimer = null;
+    }
     root.replaceChildren();
     devLog("hidden:", cause);
   }
@@ -224,6 +231,26 @@ export function createBuzzPopup(): BuzzPopupHandles {
         "aria-label",
         "Resume video and open the next buzz round",
       );
+      // Post-buzz lockout: same RESUME_DELAY_MS rule as the buzzer panel —
+      // the host cannot resume for one second after the buzz lands, so the
+      // room gets a beat to see WHO buzzed. Server-anchored comparison.
+      const startedAt = info.buzzedAt;
+      const delayRemaining =
+        typeof startedAt === "number" && Number.isFinite(startedAt)
+          ? Math.max(
+              0,
+              startedAt +
+                RESUME_DELAY_MS -
+                (Date.now() + (info.serverOffsetMs ?? 0)),
+            )
+          : 0;
+      if (delayRemaining > 0) {
+        resume.disabled = true;
+        resumeEnableTimer = window.setTimeout(() => {
+          resumeEnableTimer = null;
+          resume.disabled = false;
+        }, delayRemaining + 25);
+      }
       resume.addEventListener("click", () => actions?.onResumeAndNext());
       bar.append(resume);
       card.append(bar);

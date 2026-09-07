@@ -1,6 +1,26 @@
 /** YouTube video IDs are exactly 11 chars of [A-Za-z0-9_-]. */
 export const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
+/* ------------------------------------------------------------------ */
+/*  Local video volume (YouTube IFrame API range: 0..100)              */
+/* ------------------------------------------------------------------ */
+
+/** Step size for the volume up/down controls. */
+export const VOLUME_STEP = 10;
+export const MIN_VOLUME = 0;
+export const MAX_VOLUME = 100;
+
+/** Clamps any value into the YT API's 0..100 volume range (integers). */
+export function clampVolume(value: number): number {
+  if (!Number.isFinite(value)) return MAX_VOLUME;
+  return Math.min(MAX_VOLUME, Math.max(MIN_VOLUME, Math.round(value)));
+}
+
+/** Applies a signed step to a current volume, clamped to 0..100. */
+export function stepVolume(current: number, delta: number): number {
+  return clampVolume(clampVolume(current) + delta);
+}
+
 const PATH_PREFIXES = ["embed", "shorts", "live", "v"];
 
 function stripHostPrefixes(hostname: string): string {

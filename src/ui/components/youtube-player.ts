@@ -4,6 +4,11 @@ import {
   isStaleSequence,
   shouldSeekTo,
 } from "../../lib/video-sync";
+import {
+  clampVolume,
+  stepVolume,
+  VOLUME_STEP,
+} from "../../lib/youtube";
 
 export type HostAction = "play" | "pause" | "restart" | "seek";
 
@@ -239,6 +244,53 @@ export function createYoutubePlayer(
   let slider: HTMLInputElement | null = null;
   let timeLabel: HTMLElement | null = null;
 
+  /* ---------- Local volume control (EVERY viewer) ----------
+     Loudness is inherently per-client hardware: the host's volume writes
+     are NOT broadcast and never touch Firebase — each viewer adjusts their
+     own speaker level through the YT API (setVolume, 0..100). The host
+     gets it inline in the playback controls row; players get a compact
+     floating control at the video's bottom-right. */
+  let volume = 100;
+
+  const volDownBtn = document.createElement("button");
+  volDownBtn.type = "button";
+  volDownBtn.className = "vb-btn vb-btn--ghost vb-btn--small vb-volume__btn";
+  volDownBtn.textContent = "−";
+  volDownBtn.setAttribute("aria-label", "Decrease volume");
+
+  const volLabel = document.createElement("span");
+  volLabel.className = "vb-volume__level";
+  volLabel.textContent = "100%";
+
+  const volUpBtn = document.createElement("button");
+  volUpBtn.type = "button";
+  volUpBtn.className = "vb-btn vb-btn--ghost vb-btn--small vb-volume__btn";
+  volUpBtn.textContent = "+";
+  volUpBtn.setAttribute("aria-label", "Increase volume");
+
+  function renderVolume(): void {
+    volLabel.textContent = `${volume}%`;
+    volDownBtn.disabled = !ready || volume <= 0;
+    volUpBtn.disabled = !ready || volume >= 100;
+  }
+
+  function applyVolumeDelta(delta: number): void {
+    volume = stepVolume(volume, delta);
+    if (player && ready) player.setVolume(volume);
+    renderVolume();
+  }
+
+  volDownBtn.addEventListener("click", () => applyVolumeDelta(-VOLUME_STEP));
+  volUpBtn.addEventListener("click", () => applyVolumeDelta(VOLUME_STEP));
+
+  const volumeControl = document.createElement("div");
+  volumeControl.className = "vb-volume";
+  volumeControl.append(volDownBtn, volLabel, volUpBtn);
+  // NOTE: no renderVolume() here — `ready`/`player` are declared in the
+  // player-lifecycle section below; calling it this early would hit the
+  // temporal-dead zone and crash createYoutubePlayer synchronously.
+  // The initial render happens right after those declarations.
+
   if (opts.isHost) {
     const controls = document.createElement("div");
     controls.className = "vb-controls";
@@ -287,8 +339,13 @@ export function createYoutubePlayer(
       if (ready) opts.onHostAction("seek", Number(slider!.value));
     });
 
-    controls.append(toggleBtn, restartBtn, slider, timeLabel);
+    controls.append(toggleBtn, restartBtn, slider, timeLabel, volumeControl);
     root.append(controls);
+  } else {
+    // Players: compact floating control at the video's bottom-right (above
+    // the shield, below loading/error overlays). Local loudness only.
+    volumeControl.classList.add("vb-volume--floating");
+    root.append(volumeControl);
   }
 
   /* ---------- Player lifecycle ---------- */
@@ -310,6 +367,10 @@ export function createYoutubePlayer(
 
   /** The video id the live iframe currently represents ('' = idle). */
   let currentVideoId = videoId;
+
+  // Safe now: `ready`/`player` above are initialized. Renders the initial
+  // volume label and button disabled states.
+  renderVolume();
 
   /* ---------- Local autoplay-block detection (additive, no polling) ----
      After an authoritative play request, a SINGLE one-shot check verifies
@@ -650,6 +711,13 @@ export function createYoutubePlayer(
           ready = true;
           removeLoading();
           applyPlayerSize();
+          // Adopt the player's actual volume (YT default 100) so the label
+          // and button limits reflect reality from the first frame.
+          const reported = player?.getVolume?.();
+          if (typeof reported === "number" && Number.isFinite(reported)) {
+            volume = clampVolume(reported);
+          }
+          renderVolume();
           attachLayoutObserver();
           logLayoutTable();
           checkDevShellWidth();
