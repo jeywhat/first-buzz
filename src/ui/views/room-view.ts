@@ -1,6 +1,7 @@
 import { renderConnectionBadge } from "../components/connection-badge";
 import { renderParticipantList } from "../components/participant-list";
 import { createTop3Podium } from "../components/top3-podium";
+import { createSettingsModal } from "../components/settings-modal";
 import { createThemeToggle } from "../../lib/theme";
 import type { RoomViewHandles } from "../types";
 import type { ParticipantView } from "../../types/participant";
@@ -139,13 +140,20 @@ export function renderRoomView(opts: {
   leaveBtn.setAttribute("aria-label", "Leave room");
   leaveBtn.addEventListener("click", () => opts.onLeave());
 
-  headerRight.append(createThemeToggle(), badge.root, identity, hostTag, leaveBtn);
+  // Settings gear + modal — per-user preferences (buzzer sound), independent
+  // of the room. The modal content slot is filled by main.ts.
+  const settingsModal = createSettingsModal();
+
+  headerRight.append(createThemeToggle(), settingsModal.button, badge.root, identity, hostTag, leaveBtn);
 
   // TOP 3 podium — header MIDDLE, DESKTOP ONLY (CSS shows it at ≥1100px;
   // hidden on every narrower viewport). Rendered from the participants
   // snapshot in setParticipants — read-only, no Firebase involvement.
   const top3 = createTop3Podium();
   header.append(headerLeft, top3.root, headerRight);
+  // The modal overlay lives at the page root so it is never clipped by the
+  // topbar's stacking context.
+  root.append(settingsModal.modalRoot);
 
   /* ---------- Connection banner ---------- */
 
@@ -222,6 +230,7 @@ export function renderRoomView(opts: {
     buzzPopupColumn: buzzPopupRegion,
     arenaSlot,
     settingsContent,
+    settingsModal,
     titleChip,
     identity: { avatar: identityAvatar, name: identityName, score: identityScore, root: identity },
     sidebar,

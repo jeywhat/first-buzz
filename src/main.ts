@@ -9,7 +9,6 @@ import {
 import { describeDbError } from "./lib/errors";
 import { getFirebaseDatabase } from "./lib/firebase";
 import {
-  ensureSoundProfileId,
   joinRoom,
   pickColor,
   watchRoomParticipants,
@@ -85,11 +84,15 @@ import {
   clearProcessedEventKeys,
   getAudioStatus,
   markEventProcessed,
-  normalizeProfileId,
   playWinnerSound,
   stopActiveSounds,
   unlockAudioFromUserGesture,
-} from "./services/proceduralBuzzerAudioService";
+} from "./services/buzzerAudioService";
+import {
+  ensureBuzzerSound,
+  getBuzzerSound,
+  watchBuzzerSounds,
+} from "./lib/buzzer-sound-store";
 import {
   createYoutubePlayer,
   type YoutubePlayerHandles,
@@ -173,7 +176,7 @@ async function handleCreate(youtubeUrl: string, name: string): Promise<void> {
   try {
     const code = await createRoom(uid, videoId);
     await joinRoom(code, uid, { name, color: pickColor(uid) });
-    void ensureSoundProfileId(code, uid).catch(() => {});
+    void ensureBuzzerSound(uid).catch(() => {});
     saveDisplayName(name);
     navigate(`/room/${code}`);
     await enterRoom(code, uid, name, videoId);
@@ -202,7 +205,7 @@ async function handleJoin(code: string, name: string): Promise<void> {
       return;
     }
     await joinRoom(code, uid, { name, color: pickColor(uid) });
-    void ensureSoundProfileId(code, uid).catch(() => {});
+    void ensureBuzzerSound(uid).catch(() => {});
     saveDisplayName(name);
     navigate(`/room/${code}`);
     // Full room read becomes permitted only after joining.
@@ -512,24 +515,12 @@ async function enterRoom(
 
 
     /* Game sound controls (must not block BUZZ button) */
-    const soundPanel = createSoundPanel({
-      code,
-      uid,
-      initialProfileId: null,
-    });
-    // Place sound controls below the stage but still in sidebar; never covers buzzer.
-    // Sound settings live inside the collapsed settings drawer.
-    view.settingsContent.append(soundPanel.root);
-    // Ensure durable sound profile exists (deterministic fallback)
-    void ensureSoundProfileId(code, uid).then((pid) => {
-      // keep UI in sync with persisted value
-      try {
-        // dynamic import to avoid cycle, but we already have panel
-        soundPanel.setProfile(pid as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId);
-      } catch {
-        // ignore
-      }
-    });
+    const soundPanel = createSoundPanel({ uid });
+    // Sound settings live in the topbar gear modal — room-independent
+    // per-user preferences, never inside the room's settings drawer.
+    view.settingsModal.content.append(soundPanel.root);
+    // Ensure the global per-user buzzer sound exists (factory default).
+    void ensureBuzzerSound(uid).catch(() => {});
 
     /* Mute/volume live canonically in the ⚙️ Settings sound panel (sound-panel.ts).
        The former top-bar sound toggle was removed: it was redundant and
@@ -687,7 +678,19 @@ async function enterRoom(
 
     /* Keyboard shortcuts (Space / Enter / NumpadEnter) */
     let modalOpen = false;
-    hostPanel?.onModalOpenChange?.((open: boolean) => { modalOpen = open; });
+    let hostModalOpen = false;
+    let settingsModalOpen = false;
+    const syncModalFlag = (): void => {
+      modalOpen = hostModalOpen || settingsModalOpen;
+    };
+    hostPanel?.onModalOpenChange?.((open: boolean) => {
+      hostModalOpen = open;
+      syncModalFlag();
+    });
+    view.settingsModal.onOpenChange((open: boolean) => {
+      settingsModalOpen = open;
+      syncModalFlag();
+    });
     if (import.meta.env.DEV) {
       const w = window as unknown as { __vbKeyboardListeners?: number };
       w.__vbKeyboardListeners = (w.__vbKeyboardListeners ?? 0) + 1;
@@ -762,11 +765,8 @@ async function enterRoom(
         );
         stage.setRoomData(list, latestRound, uid);
         scoring?.setParticipants(list);
-        // keep sound panel's selector in sync if profile changed remotely for self
-        const self = list.find((p) => p.uid === uid);
-        if (self?.soundProfileId) {
-          soundPanel.setProfile(self.soundProfileId as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId);
-        }
+        // Buzzer sound choice is room-independent (global /profiles node) —
+        // the room participant list no longer drives the sound panel.
       },
     );
     const unConnection = watchConnectionState((online) => {
@@ -799,6 +799,10 @@ async function enterRoom(
         value: mine ? JSON.stringify(mine) : "(absent)",
       });
     });
+
+    // Global per-user buzzer sounds (room-independent) — one listener keeps
+    // the winner-sound lookup cache fresh on every client.
+    const unProfiles = watchBuzzerSounds();
 
     // Capped audit feed (most recent 50) — read-only for everyone.
     const unScoreEvents = onValue(
@@ -964,7 +968,14 @@ async function enterRoom(
       // Reuse confirmed buzz event model: round buzzed + winner + roundNumber + buzzedAt
       const initialCallback = isFirstRoundCallback;
       if (round.state === "buzzed" && round.buzz) {
-        const buzzKey = `${code}:${round.number}:${round.buzz.playerId}:${round.buzz.buzzedAt}`;
+        // STABLE event key: code + round number + winner. Deliberately NOT
+        // buzzedAt — RTDB fires the watcher twice for server-timestamp writes
+        // (local optimistic echo with an estimated clock, then the server ack
+        // with the resolved value), and a timestamp-based key would change
+        // between the two, defeating the sound/popup dedup → double playback.
+        // One buzz per round is guaranteed by the transaction, so this key
+        // is unique per buzz event.
+        const buzzKey = `${code}:${round.number}:${round.buzz.playerId}`;
         const storedFp = roundSessionByNumber.get(round.number);
         const isStaleSession = storedFp !== null && storedFp !== activeSessionFingerprint;
         // Late join / refresh / stale-session → static final state only.
@@ -988,11 +999,11 @@ async function enterRoom(
           serverOffsetMs,
         });
         if (!renderStatic) {
-          const winner = participants.find((p) => p.uid === round.buzz!.playerId);
-          const rawProfile = winner?.soundProfileId;
-          const profileId = normalizeProfileId(rawProfile, round.buzz.playerId);
-          if (import.meta.env.DEV) console.debug("[audio] confirmed winner", { buzzKey, profileId, winnerId: round.buzz.playerId });
-          void playWinnerSound(profileId as import("./services/proceduralBuzzerAudioService").BuzzerSoundProfileId, buzzKey).then(() => {
+          // Winner's chosen sound — resolved from the global per-user profile
+          // cache (room-independent), falling back to the factory default.
+          const winnerSoundId = getBuzzerSound(round.buzz!.playerId);
+          if (import.meta.env.DEV) console.debug("[audio] confirmed winner", { buzzKey, winnerSoundId, winnerId: round.buzz!.playerId });
+          void playWinnerSound(winnerSoundId, buzzKey).then(() => {
             if (getAudioStatus() !== "ready") soundPanel.setBlockedHintVisible(true);
           });
         } else {
@@ -1084,6 +1095,7 @@ async function enterRoom(
       mediaActivationOverlay.dispose();
       unParticipants();
       unPresenceDebug();
+      unProfiles();
       unScoreEvents();
       unConnection();
       unOffset();
@@ -1095,6 +1107,7 @@ async function enterRoom(
       buzzPanel.dispose();
       stage.dispose();
       hostPanel_?.dispose();
+      view.settingsModal.dispose();
       soundPanel.dispose();
       stopActiveSounds();
       clearProcessedEventKeys();
@@ -1144,7 +1157,7 @@ async function openRoomByCode(code: RoomCode): Promise<void> {
 
   try {
     await joinRoom(code, uid, { name: savedName, color: pickColor(uid) });
-    void ensureSoundProfileId(code, uid).catch(() => {});
+    void ensureBuzzerSound(uid).catch(() => {});
   } catch (err) {
     bounceHome(describeDbError(err), code);
     return;

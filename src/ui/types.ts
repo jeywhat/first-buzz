@@ -1,4 +1,5 @@
 import type { ParticipantView } from "../types/participant";
+import type { SettingsModalHandles } from "./components/settings-modal";
 
 export type { ParticipantView };
 
@@ -19,6 +20,8 @@ export interface RoomViewHandles {
   arenaSlot: HTMLElement;
   /** Content node of the collapsed settings/diagnostics drawer. */
   settingsContent: HTMLElement;
+  /** Topbar gear + settings modal (sound panel mounts in its content slot). */
+  settingsModal: SettingsModalHandles;
   /** Video meta chip (shows queue item label / round state). */
   titleChip: HTMLElement;
   /** Header identity elements (current user). */

@@ -32,3 +32,12 @@ export const scoreEventsPath = (code: RoomCode): string =>
 export const presenceRoomPath = (code: RoomCode): string => `presence/${code}`;
 export const presenceUserPath = (code: RoomCode, uid: UserId): string =>
   `${presenceRoomPath(code)}/${uid}`;
+
+/**
+ * Global per-user profiles — room-INDEPENDENT preferences (the buzzer sound
+ * follows the player across rooms). Writable only by the owner; readable by
+ * any authenticated user so every client can play the winner's sound.
+ */
+export const profilesPath = (): string => "profiles";
+export const buzzerSoundPath = (uid: UserId): string =>
+  `${profilesPath()}/${uid}/buzzerSound`;

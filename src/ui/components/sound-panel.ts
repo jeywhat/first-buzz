@@ -1,42 +1,40 @@
 import {
-  BUZZER_SOUND_PROFILES,
-  type BuzzerSoundProfileId,
+  BUZZER_SOUNDS,
+  BUZZER_SOUND_LABELS,
+  DEFAULT_BUZZER_SOUND,
+  isValidBuzzerSoundId,
+  type BuzzerSoundId,
+} from "../../lib/buzzer-sounds";
+import {
   getAudioPreferences,
   getAudioStatus,
-  isValidSoundProfileId,
-  previewSoundProfile,
+  previewSound,
   setMuted,
+  setPreferredSound,
   setVolume,
   unlockAudioFromUserGesture,
-} from "../../services/proceduralBuzzerAudioService";
-import { setSoundProfileId } from "../../lib/players";
-import type { RoomCode, UserId } from "../../types";
-
-const PROFILE_LABELS: Record<BuzzerSoundProfileId, string> = {
-  "classic-buzzer": "Classic Buzzer",
-  "arcade-zap": "Arcade Zap",
-  "game-show-ding": "Game Show Ding",
-  "retro-blip": "Retro Blip",
-  "synth-horn": "Synth Horn",
-  "laser-pulse": "Laser Pulse",
-  "double-chime": "Double Chime",
-  "electric-pop": "Electric Pop",
-};
+} from "../../services/buzzerAudioService";
+import {
+  loadLocalBuzzerSound,
+  setBuzzerSound,
+} from "../../lib/buzzer-sound-store";
+import type { UserId } from "../../types";
 
 export interface SoundPanelHandles {
   root: HTMLElement;
-  setProfile(profileId: BuzzerSoundProfileId | null): void;
   setBlockedHintVisible(visible: boolean): void;
-  /** Syncs the mute checkbox + volume slider from the top-bar toggle. */
+  /** Syncs the mute checkbox + volume slider from external state changes. */
   setMutedState(muted: boolean): void;
   dispose(): void;
 }
 
-export function createSoundPanel(opts: {
-  code: RoomCode;
-  uid: UserId;
-  initialProfileId: BuzzerSoundProfileId | null;
-}): SoundPanelHandles {
+/**
+ * "My buzzer sound" settings — rendered inside the topbar gear modal.
+ * The choice is room-INDEPENDENT: persisted globally per user in RTDB
+ * (/profiles/{uid}/buzzerSound) and mirrored in localStorage for instant
+ * load. Preview plays the mp3 through the shared audio graph.
+ */
+export function createSoundPanel(opts: { uid: UserId }): SoundPanelHandles {
   const root = document.createElement("section");
   root.className = "vb-sound-panel";
   root.setAttribute("aria-label", "Game sound settings");
@@ -89,7 +87,7 @@ export function createSoundPanel(opts: {
   volLabel.append(volSlider);
   volRow.append(volLabel);
 
-  // Profile selector + preview
+  // Sound selector + preview
   const profileRow = document.createElement("div");
   profileRow.className = "vb-sound-profile-row";
   const profileLabel = document.createElement("label");
@@ -97,11 +95,11 @@ export function createSoundPanel(opts: {
   profileLabel.textContent = "My buzzer sound";
   const select = document.createElement("select");
   select.className = "vb-input vb-sound-select";
-  select.setAttribute("aria-label", "My buzzer sound profile");
-  for (const pid of BUZZER_SOUND_PROFILES) {
+  select.setAttribute("aria-label", "My buzzer sound");
+  for (const id of BUZZER_SOUNDS) {
     const o = document.createElement("option");
-    o.value = pid;
-    o.textContent = PROFILE_LABELS[pid];
+    o.value = id;
+    o.textContent = BUZZER_SOUND_LABELS[id];
     select.append(o);
   }
   const previewBtn = document.createElement("button");
@@ -114,18 +112,15 @@ export function createSoundPanel(opts: {
 
   root.append(heading, enableBtn, blockedHint, muteRow, volRow, profileRow, liveRegion);
 
-  // init from prefs/service
+  // init from prefs/service + local choice (room-independent)
   const prefs = getAudioPreferences();
   muteCheck.checked = prefs.muted;
   volSlider.value = String(prefs.volume);
   volSlider.disabled = prefs.muted;
 
-  let currentProfile: BuzzerSoundProfileId | null = opts.initialProfileId;
-  if (currentProfile && isValidSoundProfileId(currentProfile)) {
-    select.value = currentProfile;
-  } else if (opts.initialProfileId == null) {
-    // will be set via setProfile after ensure
-  }
+  const localChoice = loadLocalBuzzerSound() ?? DEFAULT_BUZZER_SOUND;
+  select.value = localChoice;
+  setPreferredSound(localChoice);
 
   function syncEnableVisibility(): void {
     const st = getAudioStatus();
@@ -170,7 +165,6 @@ export function createSoundPanel(opts: {
     setMuted(m);
     volSlider.disabled = m;
     announce(m ? "Game sounds muted" : "Game sounds unmuted");
-    if (import.meta.env.DEV) console.debug("[audio] mute toggled", m);
   });
 
   volSlider.addEventListener("input", () => {
@@ -179,65 +173,39 @@ export function createSoundPanel(opts: {
   });
 
   previewBtn.addEventListener("click", () => {
-    const pid = select.value as BuzzerSoundProfileId;
-    if (!isValidSoundProfileId(pid)) return;
+    const id = select.value as BuzzerSoundId;
+    if (!isValidBuzzerSoundId(id)) return;
     // gesture: unlock first, synchronously
     const unlockP = unlockAudioFromUserGesture();
     void unlockP.then((r) => {
       syncEnableVisibility();
-      if (r.status !== "ready" && r.status !== "blocked") {
-        // still try preview (service will attempt unlock)
-      }
-      void previewSoundProfile(pid).catch(() => {
+      void previewSound(id).catch(() => {
         announce("Preview failed");
       });
-      if (import.meta.env.DEV) console.debug("[audio] preview", pid, r.status);
+      if (import.meta.env.DEV) console.debug("[audio] preview", id, r.status);
     });
   });
 
   select.addEventListener("change", () => {
-    const pid = select.value as BuzzerSoundProfileId;
-    if (!isValidSoundProfileId(pid)) return;
-    currentProfile = pid;
-    // gesture unlock synchronously before async write
+    const id = select.value as BuzzerSoundId;
+    if (!isValidBuzzerSoundId(id)) return;
+    // gesture unlock synchronously before async work
     const unlockP = unlockAudioFromUserGesture();
     void unlockP.then(() => syncEnableVisibility());
-    // Persist to Firebase (only own player)
-    void setSoundProfileId(opts.code, opts.uid, pid)
+    setPreferredSound(id);
+    // Persist globally (room-independent) — RTDB + localStorage mirror.
+    void setBuzzerSound(opts.uid, id)
       .then(() => {
-        if (import.meta.env.DEV) console.debug("[audio] profile saved", pid);
+        if (import.meta.env.DEV) console.debug("[audio] sound saved", id);
       })
       .catch((err) => {
         announce("Could not save buzzer sound");
         if (import.meta.env.DEV) console.warn("[audio] save failed", err);
       });
-    // Also preview locally? Not required, but can preview via separate button only
   });
-
-  // Dev-only test control
-  if (import.meta.env.DEV) {
-    const devBtn = document.createElement("button");
-    devBtn.type = "button";
-    devBtn.className = "vb-btn vb-btn--ghost vb-btn--small";
-    devBtn.textContent = "Test generated sound";
-    devBtn.addEventListener("click", () => {
-      const pid = select.value as BuzzerSoundProfileId;
-      const unlockP = unlockAudioFromUserGesture();
-      void unlockP.then(() => {
-        void previewSoundProfile(pid).catch(() => {});
-      });
-    });
-    root.append(devBtn);
-  }
 
   return {
     root,
-    setProfile(profileId) {
-      if (profileId && isValidSoundProfileId(profileId)) {
-        currentProfile = profileId;
-        select.value = profileId;
-      }
-    },
     setBlockedHintVisible(visible) {
       blockedHint.hidden = !visible;
       if (visible) blockedHint.textContent = "Enable game sounds for future buzzes";

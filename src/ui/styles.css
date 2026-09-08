@@ -2544,6 +2544,31 @@ button {
   gap: 8px;
 }
 
+/* ---------- Settings modal (topbar gear) ----------
+   Per-user preferences (buzzer sound) — room-independent. Reuses .vb-modal
+   overlay styles; the box is a bit wider to fit the sound selector. */
+.vb-settings-modal__box {
+  width: min(420px, 92vw);
+}
+
+.vb-settings-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vb-settings-modal__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+
+.vb-settings-modal__content .vb-sound-select {
+  max-width: 100%;
+}
+
 .vb-toasts {
   position: fixed;
   left: 50%;
