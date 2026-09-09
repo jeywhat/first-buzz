@@ -256,8 +256,11 @@ export function renderRoomView(opts: {
       connBanner.hidden = online;
     },
     setRoundStatus(state) {
+      // Rounds are no longer a user-facing concept: the chip stays neutral
+      // except for the two states players actually react to.
       titleChip.dataset.state = state ?? "";
-      titleChip.textContent = state ? `Round · ${state}` : "Live quiz arena";
+      titleChip.textContent =
+        state === "buzzed" ? "Buzz!" : state === "cooldown" ? "Next buzz soon…" : "Live quiz arena";
     },
     setPlayerCount(online, total) {
       void online;

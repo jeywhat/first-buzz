@@ -9,7 +9,6 @@ import { createBuzzPopup, type BuzzPopupInfo } from "./buzz-popup";
 function info(overrides: Partial<BuzzPopupInfo> = {}): BuzzPopupInfo {
   return {
     buzzEventKey: "room:39:u2:1000",
-    roundNumber: 39,
     winnerId: "u2",
     winnerName: "jeywhat",
     winnerColor: "#ff8800",
@@ -64,14 +63,14 @@ describe("buzz popup region", () => {
 /* ------------------------------------------------------------------ */
 
 describe("buzzed popup content", () => {
-  it("renders round badge, VIDEO PAUSED badge, winner and meta", () => {
+  it("renders BUZZED badge, VIDEO PAUSED badge, winner and meta", () => {
     const popup = mount();
     popup.show(info());
     const card = popup.root.querySelector<HTMLElement>(".vb-buzz-popup")!;
     expect(card.dataset.state).toBe("buzzed");
 
     const header = card.querySelector(".vb-buzz-popup__header")!;
-    expect(header.querySelector(".vb-round-badge")!.textContent).toBe("ROUND #39 · BUZZED");
+    expect(header.querySelector(".vb-round-badge")!.textContent).toBe("BUZZED");
     expect(header.querySelector(".vb-paused-badge")!.textContent).toBe("VIDEO PAUSED");
 
     expect(card.querySelector(".vb-buzz-popup__name")!.textContent).toBe("jeywhat");

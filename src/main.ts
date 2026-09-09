@@ -554,7 +554,6 @@ async function enterRoom(
 
     if (isHost) {
       hostPanel = createHostPanel({
-        onNewRound: () => runModeration(() => openNextRound(code), "New round opened"),
         onResync: () =>
           runModeration(
             () => requestResync(code, uid, player?.getPosition() ?? 0),
@@ -871,6 +870,8 @@ async function enterRoom(
     const roundSessionByNumber = new Map<number, string>();
     let activeVideoId = videoId;
     let activeSessionFingerprint = `${videoId}:0`;
+    /** Guards against concurrent auto-open writes while one is in flight. */
+    let autoOpeningRound = false;
 
     /* ---------------- DEV-only buzzer geometry assertion ----------------
        The Buzzer zone must be geometrically stable across all round states.
@@ -921,7 +922,6 @@ async function enterRoom(
     const unRound = watchRound(code, (round) => {
       latestRound = round;
       buzzPanel.setRound(round);
-      hostPanel?.setRound(round);
       diagnostics.setRound(round);
       view.setRoundStatus(round.state);
       stage.setRoomData(participants, round, uid);
@@ -986,7 +986,6 @@ async function enterRoom(
         const winnerView = participants.find((p) => p.uid === round.buzz!.playerId);
         buzzPopup.show({
           buzzEventKey: buzzKey,
-          roundNumber: round.number,
           winnerId: round.buzz.playerId,
           winnerName: round.buzz.displayName,
           winnerColor: winnerView?.color ?? "#64748b",
@@ -1059,6 +1058,28 @@ async function enterRoom(
       // is handled inside the player via the same remote snapshot (seq-guarded).
       if (vid) ensurePlayer(vid);
 
+      // AUTO-ARM the buzzer: rounds are no longer a user-facing concept.
+      // As soon as a video session exists, the host opens a fresh round for
+      // it — no manual "New round" click. The transaction is idempotent per
+      // session: once the round carries the CURRENT videoSessionId, this is
+      // a no-op. A launch mid-buzzed/mid-cooldown replaces the stale round
+      // (its buzz belonged to the previous video).
+      if (isHost && vid && !autoOpeningRound) {
+        const roundSession = latestRound ? latestRound.videoSessionId ?? null : null;
+        const needsOpen =
+          !latestRound ||
+          latestRound.state === "idle" ||
+          roundSession !== latestVideoSessionId;
+        if (needsOpen) {
+          autoOpeningRound = true;
+          openNextRound(code, latestVideoSessionId)
+            .catch((err) => toasts.show(describeDbError(err), "error"))
+            .finally(() => {
+              autoOpeningRound = false;
+            });
+        }
+      }
+
       refreshBuzzGate();
       player?.applyRemote(state, serverOffsetMs);
       // Local compatibility layer (read-only): desktop clients stay fully
@@ -1071,7 +1092,6 @@ async function enterRoom(
       });
       assertDesktopMediaTransparency();
       lastSyncedPos = state.currentTimeSec;
-      hostPanel?.setVideoPlaying(state.playing);
 
       // Optional periodic re-anchor: only the host beats, only while playing.
       const wantsHeartbeat = isHost && state.playing && player !== null && !!vid;

@@ -13,8 +13,6 @@ export interface BuzzPopupActions {
 
 export interface BuzzPopupInfo {
   buzzEventKey: string;
-  /** Round number of the confirmed buzz — rendered as ROUND #X · BUZZED. */
-  roundNumber: number;
   winnerId: UserId;
   winnerName: string;
   winnerColor: string;
@@ -167,7 +165,7 @@ export function createBuzzPopup(): BuzzPopupHandles {
        here — the Buzzer zone carries none of it) ---- */
     const header = el("div", "vb-buzz-popup__header");
     header.setAttribute("aria-hidden", "true"); // headline below carries the info
-    header.append(el("span", "vb-round-badge", `ROUND #${info.roundNumber} · BUZZED`));
+    header.append(el("span", "vb-round-badge", "BUZZED"));
     if (info.videoPaused) header.append(el("span", "vb-paused-badge", "VIDEO PAUSED"));
 
     /* ---- winner row ---- */

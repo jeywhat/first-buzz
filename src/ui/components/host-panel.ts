@@ -1,8 +1,4 @@
-import type { RoundData } from "../../types";
-
 export interface HostPanelCallbacks {
-  /** Opens the next buzz: clears winner, roundNumber+1, state open. No score/playback change. */
-  onNewRound(): void;
   /** Broadcasts the current position to every client (seq bump). */
   onResync(): void;
   onResetScores(): void;
@@ -12,10 +8,6 @@ export interface HostPanelCallbacks {
 
 export interface HostPanelHandles {
   root: HTMLElement;
-  /** Drives the manual "New round" shortcut (shown while video is paused). */
-  setRound(round: RoundData | null): void;
-  /** Drives the manual "New round" shortcut (shown while video is paused). */
-  setVideoPlaying(playing: boolean): void;
   /** Disables every control while a moderation write is in flight. */
   setBusy(busy: boolean): void;
   /** Subscribe to modal open/close state for keyboard shortcut suppression. */
@@ -61,14 +53,13 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   hostBuzzRow.append(hostBuzzToggle, hostBuzzText);
 
-  /* Manual round + resync + danger zone */
+  /* Manual resync + danger zone */
   const row = document.createElement("div");
   row.className = "vb-host-row";
 
   const rowLeft = document.createElement("div");
   rowLeft.className = "vb-host-row-left";
 
-  const newRoundBtn = makeButton("New round", "vb-btn vb-btn--primary vb-btn--small");
   const resyncBtn = makeButton("↻ Resync video", "vb-btn vb-btn--ghost vb-btn--small");
 
   const resetBtn = document.createElement("button");
@@ -76,7 +67,7 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   resetBtn.className = "vb-link-danger";
   resetBtn.textContent = "Reset scores";
 
-  rowLeft.append(newRoundBtn, resyncBtn);
+  rowLeft.append(resyncBtn);
   row.append(rowLeft, resetBtn);
 
   /* Confirmation modal */
@@ -112,8 +103,6 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   /* ---------- state ---------- */
 
-  let round: RoundData | null = null;
-  let playing = false;
   let busy = false;
   let hostBuzzAllowed = false;
   let modalCallback: ((open: boolean) => void) | null = null;
@@ -123,12 +112,6 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
   }
 
   function render(): void {
-    // "New round" stays for idle (non-open, non-buzzed) states only, so the
-    // buzzed view never offers two competing ways to open a round — the
-    // resume/open-next flow lives on the canonical mechanical buzzer.
-    const canOpenManually =
-      !!round && round.state !== "open" && round.state !== "buzzed" && !playing;
-    newRoundBtn.hidden = !canOpenManually || busy;
     resyncBtn.disabled = busy;
     resetBtn.disabled = busy;
   }
@@ -139,7 +122,6 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
     };
   }
 
-  newRoundBtn.addEventListener("click", guard(cb.onNewRound));
   resyncBtn.addEventListener("click", guard(cb.onResync));
   resetBtn.addEventListener("click", guard(() => {
     modal.hidden = false;
@@ -164,14 +146,6 @@ export function createHostPanel(cb: HostPanelCallbacks): HostPanelHandles {
 
   return {
     root,
-    setRound(value) {
-      round = value;
-      render();
-    },
-    setVideoPlaying(value) {
-      playing = value;
-      render();
-    },
     setBusy(value) {
       if (busy === value) return;
       busy = value;
