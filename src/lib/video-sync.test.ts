@@ -4,6 +4,7 @@ import {
   computeExpectedPositionSec,
   getDriftToleranceSec,
   isStaleSequence,
+  planPausedAnchor,
   shouldSeekTo,
 } from "./video-sync";
 
@@ -79,5 +80,50 @@ describe("shouldSeekTo", () => {
     const t = getDriftToleranceSec();
     expect(shouldSeekTo(100, 100 + t - 0.01)).toBe(false);
     expect(shouldSeekTo(100, 100 + t + 0.01)).toBe(true);
+  });
+});
+
+describe("planPausedAnchor", () => {
+  const PLAYING = 1;
+  const PAUSED = 2;
+  const BUFFERING = 3;
+  const ENDED = 0;
+  const CUED = 5;
+  const UNSTARTED = -1;
+
+  it("pauses in place when the player is currently playing", () => {
+    expect(planPausedAnchor(PLAYING, 90, 42)).toEqual({ kind: "pause-in-place" });
+  });
+
+  it("pauses in place while buffering", () => {
+    expect(planPausedAnchor(BUFFERING, 12, 42)).toEqual({ kind: "pause-in-place" });
+  });
+
+  it("does nothing when already at the target", () => {
+    expect(planPausedAnchor(PAUSED, 42, 42)).toEqual({ kind: "none" });
+  });
+
+  it("seeks only from a genuinely paused player (never starts playback)", () => {
+    expect(planPausedAnchor(PAUSED, 10, 42)).toEqual({ kind: "seek", positionSec: 42 });
+  });
+
+  it("re-cues instead of seeking from CUED (late-join autoplay regression)", () => {
+    // The reported bug: a freshly-created joiner player is CUED; seekTo()
+    // from CUED starts the video even though the room is paused.
+    expect(planPausedAnchor(CUED, 0, 42)).toEqual({ kind: "cue", positionSec: 42 });
+  });
+
+  it("re-cues from UNSTARTED and ENDED", () => {
+    expect(planPausedAnchor(UNSTARTED, 0, 42)).toEqual({ kind: "cue", positionSec: 42 });
+    expect(planPausedAnchor(ENDED, 600, 42)).toEqual({ kind: "cue", positionSec: 42 });
+  });
+
+  it("does nothing when the cued player already reports the target", () => {
+    expect(planPausedAnchor(CUED, 42, 42)).toEqual({ kind: "none" });
+  });
+
+  it("honours a custom tolerance", () => {
+    expect(planPausedAnchor(CUED, 42, 42.5, 0.75)).toEqual({ kind: "none" });
+    expect(planPausedAnchor(CUED, 42, 44, 0.75)).toEqual({ kind: "cue", positionSec: 44 });
   });
 });

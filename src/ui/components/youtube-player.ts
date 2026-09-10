@@ -2,6 +2,7 @@ import type { VideoState } from "../../types";
 import {
   computeExpectedPositionSec,
   isStaleSequence,
+  planPausedAnchor,
   shouldSeekTo,
 } from "../../lib/video-sync";
 import {
@@ -357,8 +358,12 @@ export function createYoutubePlayer(
   let ready = false;
   let disposed = false;
   let retrying = false;
-  let appliedSeq = 0;
+  // -1 so the very first authoritative snapshot (seq 0, e.g. createRoom's
+  // paused initial state) is APPLIED rather than dropped by the stale guard.
+  let appliedSeq = -1;
   let didInitialSync = false;
+  /** Memo of the last cued video+position (avoids re-cueing every snapshot). */
+  let pausedCueKey = "";
   let serverOffsetMs = 0;
   let pendingState: VideoState | null = null;
   let ticker = 0;
@@ -614,6 +619,7 @@ export function createYoutubePlayer(
     if (state.videoId && state.videoId !== currentVideoId) {
       currentVideoId = state.videoId;
       didInitialSync = false; // re-anchor once on the new video
+      pausedCueKey = ""; // new video invalidates the cue memo
       clearVideoError();
       removeLoading();
       try {
@@ -644,23 +650,33 @@ export function createYoutubePlayer(
     const target = computeExpectedPositionSec(state, Date.now() + serverOffsetMs);
     const current = safeCurrentTime();
 
+    // ---- Authoritative PAUSE: never let a seek start playback ----
+    // A late joiner's player is freshly CUED, and `seekTo()` from CUED (or
+    // UNSTARTED) starts the video per the IFrame API contract. anchorPaused()
+    // pauses in place when already playing, seeks only from PAUSED, and
+    // re-cues otherwise. See planPausedAnchor().
+    if (!state.playing) {
+      didInitialSync = true;
+      anchorPaused(target, state.videoId);
+      syncControlsFromPlayer();
+      return;
+    }
+
     if (!didInitialSync) {
-      // Startup / late-join anchor: snap once to the authoritative position
-      // even while paused — a joiner of a paused room must not start at 0:00.
+      // Startup / late-join anchor while PLAYING: snap once to the
+      // authoritative position. `seekTo()` from CUED here is intentional —
+      // playback is wanted, and it starts at the requested position.
       didInitialSync = true;
       if (current !== null && Math.abs(current - target) > 0.05) {
         player.seekTo(target, true);
       }
-    } else if (state.playing) {
+    } else if (shouldSeekTo(current ?? target, target)) {
       // Live drift correction only runs while playing; never nudge a paused frame.
-      if (current !== null && shouldSeekTo(current, target)) {
-        player.seekTo(target, true);
-      }
+      player.seekTo(target, true);
     }
 
     const ps = player.getPlayerState();
     if (
-      state.playing &&
       ps !== YT.PlayerState.PLAYING &&
       ps !== YT.PlayerState.BUFFERING
     ) {
@@ -668,13 +684,46 @@ export function createYoutubePlayer(
       player.playVideo();
       armAutoplayBlockCheck(state.seq);
     }
-    if (
-      !state.playing &&
-      (ps === YT.PlayerState.PLAYING || ps === YT.PlayerState.BUFFERING)
-    ) {
-      player.pauseVideo();
-    }
     syncControlsFromPlayer();
+  }
+
+  /**
+   * Anchors the player to a paused authoritative position without ever
+   * starting playback. Uses the pure planPausedAnchor() decision so the
+   * API hazard is unit-tested rather than re-derived here.
+   */
+  function anchorPaused(targetSec: number, videoId: string): void {
+    if (!player || !ready) return;
+    const action = planPausedAnchor(
+      player.getPlayerState(),
+      safeCurrentTime(),
+      targetSec,
+    );
+    switch (action.kind) {
+      case "pause-in-place":
+        player.pauseVideo();
+        return;
+      case "seek":
+        // PAUSED is the only state where seekTo() keeps the player paused.
+        player.seekTo(action.positionSec, true);
+        return;
+      case "cue": {
+        // CUED / UNSTARTED / ENDED: seekTo() would start playback. Re-cue at
+        // the target instead (no stream request until the host resumes).
+        const key = `${videoId}@${action.positionSec.toFixed(2)}`;
+        if (key === pausedCueKey) return; // already cued at this position
+        pausedCueKey = key;
+        try {
+          player.cueVideoById(videoId, action.positionSec);
+        } catch (err) {
+          console.warn("[vb-player] cue-to-position failed", err);
+          pausedCueKey = ""; // allow a retry on the next snapshot
+        }
+        return;
+      }
+      default:
+        pausedCueKey = "";
+    }
   }
 
   /**
@@ -799,14 +848,18 @@ export function createYoutubePlayer(
       // next snapshot; this snaps immediately using the last known state.
       if (!pendingState || !player || !ready) return;
       const target = computeExpectedPositionSec(pendingState, Date.now() + serverOffsetMs);
+      if (!pendingState.playing) {
+        // Pause-safe: a bare seekTo() from CUED/UNSTARTED starts playback.
+        anchorPaused(target, pendingState.videoId);
+        syncControlsFromPlayer();
+        return;
+      }
       const current = safeCurrentTime();
       if (current !== null && Math.abs(current - target) > 0.05) {
         player.seekTo(target, true);
       }
       const ps = player.getPlayerState();
-      const playingNow = ps === YT.PlayerState.PLAYING || ps === YT.PlayerState.BUFFERING;
-      if (pendingState.playing && !playingNow) player.playVideo();
-      if (!pendingState.playing && playingNow) player.pauseVideo();
+      if (!isPlayingState(ps)) player.playVideo();
       syncControlsFromPlayer();
     },
     localUnlockSync(unlockState, offsetMs) {
@@ -818,17 +871,22 @@ export function createYoutubePlayer(
       pendingState = unlockState;
       lastAuthPlaying = unlockState.playing;
       const target = computeExpectedPositionSec(unlockState, Date.now() + serverOffsetMs);
+      if (!unlockState.playing) {
+        // Pause-safe: seekTo() from the common CUED/UNSTARTED state would
+        // START the video even though the room is paused (the reported bug).
+        anchorPaused(target, unlockState.videoId);
+        syncControlsFromPlayer();
+        return;
+      }
       const current = safeCurrentTime();
       if (current !== null && Math.abs(current - target) > 0.05) {
         player.seekTo(target, true);
       }
       const ps = player.getPlayerState();
-      if (unlockState.playing && !isPlayingState(ps)) {
+      if (!isPlayingState(ps)) {
         opts.onAutoplayAttempt?.();
         player.playVideo();
         armAutoplayBlockCheck(unlockState.seq);
-      } else if (!unlockState.playing && isPlayingState(ps)) {
-        player.pauseVideo();
       }
       syncControlsFromPlayer();
     },

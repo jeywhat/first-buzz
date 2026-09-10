@@ -40,3 +40,51 @@ export function shouldSeekTo(
 ): boolean {
   return Math.abs(currentSec - targetSec) > toleranceSec;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Paused anchoring (YouTube IFrame API hazard)                       */
+/* ------------------------------------------------------------------ */
+
+/* YT.PlayerState codes (numeric to avoid depending on the YT global here). */
+const YT_PLAYING = 1;
+const YT_PAUSED = 2;
+const YT_BUFFERING = 3;
+
+export type PausedAnchorAction =
+  | { kind: "none" }
+  | { kind: "pause-in-place" }
+  | { kind: "seek"; positionSec: number }
+  | { kind: "cue"; positionSec: number };
+
+/**
+ * Plans how to anchor an existing player to a PAUSED authoritative state
+ * WITHOUT ever starting playback.
+ *
+ * Why this exists: the IFrame API contract says `seekTo()` "will play the
+ * video" when called from any state other than PAUSED — `video cued` (5)
+ * and `unstarted` (-1) included. A late joiner's freshly-created player is
+ * CUED at 0, so the naive `seekTo(currentTimeSec)` silently started the
+ * video while the host's room was paused. The safe mapping is:
+ *  - currently playing/buffering → pause in place (position is authoritative);
+ *  - already at the target → nothing;
+ *  - genuinely paused elsewhere → seek (PAUSED is the only state that stays
+ *    paused through `seekTo`);
+ *  - cued / unstarted / ended → re-cue at the target (never fetches/plays).
+ */
+export function planPausedAnchor(
+  playerState: number,
+  currentSec: number | null,
+  targetSec: number,
+  toleranceSec = 0.05,
+): PausedAnchorAction {
+  if (playerState === YT_PLAYING || playerState === YT_BUFFERING) {
+    return { kind: "pause-in-place" };
+  }
+  if (currentSec !== null && Math.abs(currentSec - targetSec) <= toleranceSec) {
+    return { kind: "none" };
+  }
+  if (playerState === YT_PAUSED) {
+    return { kind: "seek", positionSec: targetSec };
+  }
+  return { kind: "cue", positionSec: targetSec };
+}
