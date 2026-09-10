@@ -2,6 +2,10 @@ import type { UserId } from "../../types/common";
 import type { ParticipantView } from "../../types/participant";
 import { comparePlayers, STATE_LABELS } from "../../lib/player-row";
 import { createGeneratedAvatar, getStableAvatarSeed } from "./generated-avatar";
+import type { ScoreFeedHandles } from "./score-feed";
+
+/** Unique ids so several panels can coexist (tests, future embeds). */
+let historyRegionSeq = 0;
 
 export interface ParticipantListOptions {
   /** Uid of the current viewer — drives the "You" indicator. */
@@ -25,6 +29,13 @@ export interface ParticipantListOptions {
    * global keyboard-buzz shortcut stays suppressed while it is open.
    */
   onModalOpenChange?(open: boolean): void;
+  /**
+   * Read-only points history. When provided, a "History Points" toggle renders
+   * in the panel footer for EVERYONE (host and non-host) and reveals the feed
+   * inline inside the panel. The owner renders the feed; this component only
+   * toggles its visibility. When omitted no toggle is rendered.
+   */
+  historyFeed?: ScoreFeedHandles;
 }
 
 interface PlayerRowRefs {
@@ -62,6 +73,10 @@ function el<K extends keyof HTMLElementTagNameMap>(
  * Updates are applied IN PLACE (no rebuild) so a score change never rebuilds,
  * never flickers, and only reorders when the documented ranking rule
  * (presence → score desc → join order → name, see comparePlayers) changes.
+ *
+ * The footer action bar is History Points (everyone) on the far LEFT and
+ * Reset scores (host-only) on the right. History reveals the inline
+ * read-only points feed directly under the player list.
  */
 export function renderParticipantList(opts: ParticipantListOptions): {
   root: HTMLElement;
@@ -78,72 +93,114 @@ export function renderParticipantList(opts: ParticipantListOptions): {
 
   const listEl = el("ul", "vb-player-list");
 
-  /* ---------- host-only danger footer: reset every score ---------- */
+  /* ---------- panel footer: History Points (all) + Reset scores (host) ------- */
+  const historyFeed = opts.historyFeed;
   const doReset = opts.isHost ? opts.onResetScores : undefined;
 
-  if (doReset) {
+  let historyRegion: HTMLElement | null = null;
+  let resetModal: HTMLElement | null = null;
+
+  if (historyFeed || doReset) {
     const footer = el("div", "vb-players-footer");
     footer.setAttribute("data-disable-buzz-shortcuts", "");
 
-    const resetBtn = el("button", "vb-link-danger", "Reset scores");
-    resetBtn.type = "button";
-    footer.append(resetBtn);
+    /* History Points — visible to EVERYONE. Disclosure button: aria-expanded
+       tracks state, aria-controls points at the inline region it reveals. */
+    if (historyFeed) {
+      const regionId = `vb-history-region-${++historyRegionSeq}`;
+      const button = el("button", "vb-link-history");
+      button.type = "button";
+      button.setAttribute("aria-expanded", "false");
+      button.setAttribute("aria-controls", regionId);
+      const buttonLabel = el("span", "vb-link-history__label", "History Points");
+      const chevron = el("span", "vb-link-history__chevron", "▾");
+      chevron.setAttribute("aria-hidden", "true");
+      button.append(buttonLabel, chevron);
 
-    /* Confirmation modal — same copy as the former host panel. */
-    const modal = el("div", "vb-modal");
-    modal.hidden = true;
+      const region = el("div", "vb-history-region");
+      region.id = regionId;
+      region.hidden = true;
+      region.setAttribute("data-disable-buzz-shortcuts", "");
+      region.append(historyFeed.root);
+      historyRegion = region;
 
-    const modalBox = el("div", "vb-modal__box");
-    modalBox.setAttribute("role", "dialog");
-    modalBox.setAttribute("aria-modal", "true");
+      button.addEventListener("click", () => {
+        const open = button.getAttribute("aria-expanded") === "true";
+        button.setAttribute("aria-expanded", String(!open));
+        region.hidden = open;
+      });
 
-    const modalTitle = el("h3", "vb-modal__title", "Reset all scores?");
-    const modalText = el(
-      "p",
-      "vb-modal__text",
-      "Every player's score goes back to 0. This cannot be undone.",
-    );
+      footer.append(button);
+    }
 
-    const modalActions = el("div", "vb-modal__actions");
-    const modalCancel = el("button", "vb-btn vb-btn--ghost vb-btn--small", "Keep scores");
-    modalCancel.type = "button";
-    const modalConfirm = el("button", "vb-btn vb-btn--small vb-btn--danger", "Reset to 0");
-    modalConfirm.type = "button";
-    modalActions.append(modalCancel, modalConfirm);
-    modalBox.append(modalTitle, modalText, modalActions);
-    modal.append(modalBox);
+    /* Reset scores — host-only danger link + confirmation modal. */
+    if (doReset) {
+      const resetBtn = el("button", "vb-link-danger", "Reset scores");
+      resetBtn.type = "button";
+      footer.append(resetBtn);
 
-    const notifyModal = (open: boolean): void => opts.onModalOpenChange?.(open);
-
-    let resetting = false;
-
-    resetBtn.addEventListener("click", () => {
-      if (resetting) return;
-      modal.hidden = false;
-      notifyModal(true);
-    });
-    modalCancel.addEventListener("click", () => {
+      /* Confirmation modal — same copy as the former host panel. */
+      const modal = el("div", "vb-modal");
       modal.hidden = true;
-      notifyModal(false);
-    });
-    modalConfirm.addEventListener("click", () => {
-      modal.hidden = true;
-      notifyModal(false);
-      if (resetting) return;
-      resetting = true;
-      resetBtn.disabled = true;
-      resetBtn.classList.add("vb-link-danger--pending");
-      // Errors are toasted by the canonical wrapper in main.ts.
-      void doReset()
-        .catch(() => undefined)
-        .finally(() => {
-          resetting = false;
-          resetBtn.disabled = false;
-          resetBtn.classList.remove("vb-link-danger--pending");
-        });
-    });
 
-    root.append(header, listEl, footer, modal);
+      const modalBox = el("div", "vb-modal__box");
+      modalBox.setAttribute("role", "dialog");
+      modalBox.setAttribute("aria-modal", "true");
+
+      const modalTitle = el("h3", "vb-modal__title", "Reset all scores?");
+      const modalText = el(
+        "p",
+        "vb-modal__text",
+        "Every player's score goes back to 0. This cannot be undone.",
+      );
+
+      const modalActions = el("div", "vb-modal__actions");
+      const modalCancel = el("button", "vb-btn vb-btn--ghost vb-btn--small", "Keep scores");
+      modalCancel.type = "button";
+      const modalConfirm = el("button", "vb-btn vb-btn--small vb-btn--danger", "Reset to 0");
+      modalConfirm.type = "button";
+      modalActions.append(modalCancel, modalConfirm);
+      modalBox.append(modalTitle, modalText, modalActions);
+      modal.append(modalBox);
+      resetModal = modal;
+
+      const notifyModal = (open: boolean): void => opts.onModalOpenChange?.(open);
+
+      let resetting = false;
+
+      resetBtn.addEventListener("click", () => {
+        if (resetting) return;
+        modal.hidden = false;
+        notifyModal(true);
+      });
+      modalCancel.addEventListener("click", () => {
+        modal.hidden = true;
+        notifyModal(false);
+      });
+      modalConfirm.addEventListener("click", () => {
+        modal.hidden = true;
+        notifyModal(false);
+        if (resetting) return;
+        resetting = true;
+        resetBtn.disabled = true;
+        resetBtn.classList.add("vb-link-danger--pending");
+        // Errors are toasted by the canonical wrapper in main.ts.
+        void doReset()
+          .catch(() => undefined)
+          .finally(() => {
+            resetting = false;
+            resetBtn.disabled = false;
+            resetBtn.classList.remove("vb-link-danger--pending");
+          });
+      });
+    }
+
+    root.append(header, listEl);
+    // Inline history sits directly under the Players list; the action bar
+    // (History Points | Reset scores) stays anchored at the bottom of the card.
+    if (historyRegion) root.append(historyRegion);
+    root.append(footer);
+    if (resetModal) root.append(resetModal);
   } else {
     root.append(header, listEl);
   }

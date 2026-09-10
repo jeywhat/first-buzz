@@ -234,6 +234,11 @@ async function enterRoom(
     // security rules read it, but the client no longer toggles or reads it.
     const allowHostToBuzz = true;
 
+    /* Read-only points-history feed. Its root is slotted into the Players
+       panel (everyone); the live watcher below keeps setEvents fed. Created
+       before the view so the panel can render the History Points toggle. */
+    const scoreFeed = createScoreFeed();
+
     const view = renderRoomView({
       code,
       uid,
@@ -259,6 +264,7 @@ async function enterRoom(
         hostModalOpen = open;
         syncModalFlag();
       },
+      historyFeed: scoreFeed,
     });
 
     /* ---------------- Canonical host score adjustment ----------------
@@ -583,12 +589,6 @@ async function enterRoom(
     /* ---------------- Playback session tracking (audit context) -------- */
     // Tracks the CURRENT playback session so audit events stay contextual.
     let latestVideoSessionId: number | null = null;
-
-    /* Compact audit feed — hidden by default inside the settings drawer.
-       Renders the read-only log only; /scoreEvents persistence stays intact. */
-    const scoreFeed = createScoreFeed();
-    view.settingsContent.append(scoreFeed.root);
-
 
     /* Diagnostics (collapsible, read-only) */
     let lastSyncedPos: number | null = null;

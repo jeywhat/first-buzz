@@ -18,16 +18,16 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /**
- * Read-only, capped score-change feed. Compact audit history rendered ONLY
- * inside the hidden settings drawer (never in the default room UI) — it
- * renders the audit log only; the durable players/{uid}/score remains the
- * source of truth and no mutation handler exists in this component.
+ * Read-only, capped score-change feed. Rendered inside the Players panel's
+ * "History Points" disclosure (inline, not an overlay). It renders the audit
+ * log only; the durable players/{uid}/score remains the source of truth and no
+ * mutation handler exists in this component.
  */
 export function createScoreFeed(): ScoreFeedHandles {
   const root = el("section", "vb-score-feed");
-  root.setAttribute("aria-label", "Recent score changes");
+  root.setAttribute("aria-label", "Points history");
 
-  const title = el("h2", "vb-section-title", "Recent score changes");
+  const title = el("h2", "vb-section-title", "Points history");
   root.append(title);
 
   const list = el("ul", "vb-score-feed-list");

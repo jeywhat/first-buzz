@@ -4,6 +4,7 @@ import { createTop3Podium } from "../components/top3-podium";
 import { createSettingsModal } from "../components/settings-modal";
 import { createThemeToggle } from "../../lib/theme";
 import type { RoomViewHandles } from "../types";
+import type { ScoreFeedHandles } from "../components/score-feed";
 import type { ParticipantView } from "../../types/participant";
 
 /**
@@ -22,9 +23,9 @@ import type { ParticipantView } from "../../types/participant";
  *       aside.vb-game-sidebar
  *         (arenaSlot)             — Buzzer stage w/ mechanical buzzer
  *         participants            — Players panel: presence, avatar, score,
- *                                   host-only −/+ adjustments + reset scores
+ *                                   host-only −/+ adjustments, History Points
+ *                                   (everyone) + reset scores (host-only)
  *         (host tools appended by main.ts)
- *         settings drawer         — sound + diagnostics
  */
 export function renderRoomView(opts: {
   code: string;
@@ -39,6 +40,11 @@ export function renderRoomView(opts: {
   onResetScores(): Promise<void>;
   /** Host-only: reset-confirmation modal state for keyboard-buzz suppression. */
   onModalOpenChange?(open: boolean): void;
+  /**
+   * Read-only points history surfaced by the Players panel's "History Points"
+   * toggle for EVERYONE. Owned/rendered by main.ts; the view only slots it in.
+   */
+  historyFeed?: ScoreFeedHandles;
 }): RoomViewHandles {
   const root = document.createElement("main");
   root.className = "vb-room-page";
@@ -246,17 +252,10 @@ export function renderRoomView(opts: {
     onAdjust: (target, delta) => opts.onAdjustScore(target.uid, delta),
     onResetScores: opts.onResetScores,
     onModalOpenChange: opts.onModalOpenChange,
+    historyFeed: opts.historyFeed,
   });
 
-  const settings = document.createElement("details");
-  settings.className = "vb-settings-drawer";
-  const settingsSummary = document.createElement("summary");
-  settingsSummary.textContent = "⚙️ Settings & diagnostics";
-  const settingsContent = document.createElement("div");
-  settingsContent.className = "vb-settings-content";
-  settings.append(settingsSummary, settingsContent);
-
-  sidebar.append(arenaSlot, participants.root, settings);
+  sidebar.append(arenaSlot, participants.root);
 
   mainArea.append(videoColumn, sidebar);
   root.append(header, connBanner, mainArea);
@@ -266,7 +265,6 @@ export function renderRoomView(opts: {
     videoColumn: videoShell,
     buzzPopupColumn: buzzPopupRegion,
     arenaSlot,
-    settingsContent,
     settingsModal,
     titleChip,
     identity: { avatar: identityAvatar, name: identityName, score: identityScore, root: identity },

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
 import { renderParticipantList } from "./participant-list";
+import { createScoreFeed } from "./score-feed";
 import type { ParticipantView } from "../../types/participant";
 
 /* ------------------------------------------------------------------ */
@@ -274,5 +275,88 @@ describe("indicators", () => {
     f.set([]);
     expect(f.root.querySelector(".vb-empty")!.textContent).toBe("Waiting for players…");
     expect(f.root.querySelectorAll(".vb-player-row").length).toBe(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  History Points footer                                              */
+/* ------------------------------------------------------------------ */
+
+describe("History Points toggle", () => {
+  function mountPanel(opts: {
+    isHost: boolean;
+    uid?: string;
+    withHistory?: boolean;
+    withReset?: boolean;
+  }): HTMLElement {
+    const historyFeed =
+      opts.withHistory === false ? undefined : createScoreFeed();
+    const handles = renderParticipantList({
+      uid: opts.uid ?? "u1",
+      isHost: opts.isHost,
+      onAdjust: () => Promise.resolve(),
+      onResetScores:
+        (opts.withReset ?? opts.isHost) ? () => Promise.resolve() : undefined,
+      historyFeed,
+    });
+    document.body.append(handles.root);
+    return handles.root;
+  }
+
+  it("shows History Points to non-hosts but not Reset scores", () => {
+    const root = mountPanel({ isHost: false });
+    expect(root.querySelector(".vb-link-history")).not.toBeNull();
+    expect(root.querySelector(".vb-link-danger")).toBeNull();
+  });
+
+  it("places History Points far LEFT of Reset scores for hosts", () => {
+    const root = mountPanel({ isHost: true });
+    const footer = root.querySelector<HTMLElement>(".vb-players-footer")!;
+    const history = footer.querySelector(".vb-link-history")!;
+    const reset = footer.querySelector(".vb-link-danger")!;
+    const children = Array.from(footer.children);
+    expect(children.indexOf(history)).toBe(0);
+    expect(children.indexOf(reset)).toBe(1);
+  });
+
+  it("renders the feed inline directly under the Players list", () => {
+    const root = mountPanel({ isHost: false });
+    const list = root.querySelector(".vb-player-list")!;
+    const region = root.querySelector<HTMLElement>(".vb-history-region")!;
+    expect(list.nextElementSibling).toBe(region);
+    expect(region.querySelector(".vb-score-feed")).not.toBeNull();
+  });
+
+  it("toggles the inline feed with aria-expanded / aria-controls", () => {
+    const root = mountPanel({ isHost: false });
+    const button = root.querySelector<HTMLButtonElement>(".vb-link-history")!;
+    const region = root.querySelector<HTMLElement>(".vb-history-region")!;
+
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(button.getAttribute("aria-controls")).toBe(region.id);
+    expect(region.hidden).toBe(true);
+    expect(button.textContent).toContain("History Points");
+
+    button.click();
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(region.hidden).toBe(false);
+
+    button.click();
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(region.hidden).toBe(true);
+  });
+
+  it("suppresses buzz shortcuts on the footer and the feed region", () => {
+    const root = mountPanel({ isHost: true });
+    const footer = root.querySelector<HTMLElement>(".vb-players-footer")!;
+    const region = root.querySelector<HTMLElement>(".vb-history-region")!;
+    expect(footer.hasAttribute("data-disable-buzz-shortcuts")).toBe(true);
+    expect(region.hasAttribute("data-disable-buzz-shortcuts")).toBe(true);
+  });
+
+  it("renders no toggle (and no footer) when no feed is provided", () => {
+    const root = mountPanel({ isHost: false, withHistory: false });
+    expect(root.querySelector(".vb-link-history")).toBeNull();
+    expect(root.querySelector(".vb-players-footer")).toBeNull();
   });
 });

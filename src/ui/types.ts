@@ -18,8 +18,6 @@ export interface RoomViewHandles {
   buzzPopupColumn: HTMLElement;
   /** Buzzer stage slot — first card of the game sidebar (mechanical buzzer). */
   arenaSlot: HTMLElement;
-  /** Content node of the collapsed settings/diagnostics drawer. */
-  settingsContent: HTMLElement;
   /** Topbar gear + settings modal (sound panel mounts in its content slot). */
   settingsModal: SettingsModalHandles;
   /** Video meta chip (shows queue item label / round state). */

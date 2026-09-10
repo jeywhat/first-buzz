@@ -1726,14 +1726,67 @@ button {
   opacity: 0.55;
 }
 
-/* ---------- Host-only danger footer (Reset scores) ---------- */
+/* ---------- Panel footer: History Points (all) + Reset (host) ---------- */
 
 .vb-players-footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 2px dashed var(--vb-ink);
+}
+
+/* Far LEFT of the footer; auto margin keeps it left even when Reset is absent. */
+.vb-link-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--vb-text);
+  font-family: var(--vb-font-display);
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.vb-link-history:hover {
+  color: var(--vb-blue);
+}
+
+.vb-link-history__chevron {
+  font-size: 0.7rem;
+  line-height: 1;
+  transition: transform 160ms ease;
+}
+
+.vb-link-history[aria-expanded="true"] .vb-link-history__chevron {
+  transform: rotate(180deg);
+}
+
+/* Inline disclosure directly under the Players list — no overlay/hit-testing. */
+.vb-history-region {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--vb-ink);
+}
+
+.vb-history-region[hidden] {
+  display: none;
+}
+
+/* The feed is card-less inside the Players panel (no nested double chrome). */
+.vb-players-panel .vb-score-feed {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 /* ---------- Host-only score adjustment buttons ---------- */
@@ -2199,34 +2252,8 @@ button {
 }
 
 /* ============================================================
-   Settings drawer (sound + diagnostics)
+   Sound panel (mounted in the ⚙️ Settings modal)
    ============================================================ */
-
-.vb-settings-drawer {
-  background: var(--vb-card);
-  border: var(--vb-outline);
-  border-radius: 20px;
-  padding: 10px 14px;
-  box-shadow: var(--vb-hard-shadow);
-}
-
-.vb-settings-drawer > summary {
-  font-family: var(--vb-font-display);
-  font-size: 0.8rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  cursor: pointer;
-  user-select: none;
-  color: var(--vb-text-muted);
-}
-
-.vb-settings-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 10px;
-}
 
 /* Sound panel */
 .vb-sound-panel {
