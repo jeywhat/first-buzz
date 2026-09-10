@@ -38,9 +38,13 @@ export function saveLocalBuzzerSound(id: BuzzerSoundId): void {
   }
 }
 
-/** Cached sound for a user (winner lookup); falls back to the factory default. */
+/**
+ * Cached sound for a user (winner lookup). Falls back to the FACTORY
+ * default — never to the LOCAL listener's own choice, which would make
+ * every speaker play their own sound instead of the winner's.
+ */
 export function getBuzzerSound(uid: UserId): BuzzerSoundId {
-  return cache.get(uid) ?? loadLocalBuzzerSound() ?? DEFAULT_BUZZER_SOUND;
+  return cache.get(uid) ?? DEFAULT_BUZZER_SOUND;
 }
 
 /**
@@ -49,15 +53,28 @@ export function getBuzzerSound(uid: UserId): BuzzerSoundId {
  */
 export function watchBuzzerSounds(onChange?: () => void): Unsubscribe {
   const db = getFirebaseDatabase();
-  return onValue(ref(db, profilesPath()), (snap) => {
-    cache.clear();
-    snap.forEach((child) => {
-      const uid = child.key;
-      const sound = child.child("buzzerSound").val();
-      if (uid && isValidBuzzerSoundId(sound)) cache.set(uid, sound);
-    });
-    onChange?.();
-  });
+  return onValue(
+    ref(db, profilesPath()),
+    (snap) => {
+      cache.clear();
+      snap.forEach((child) => {
+        const uid = child.key;
+        const sound = child.child("buzzerSound").val();
+        if (uid && isValidBuzzerSoundId(sound)) cache.set(uid, sound);
+      });
+      onChange?.();
+    },
+    (err) => {
+      // A denied read here means the winner's sound can never be resolved —
+      // loud failure in dev, quiet console warn in prod.
+      const code = (err as { code?: string })?.code;
+      if (import.meta.env.DEV) {
+        console.error("[buzzer-sound-store] profiles watch failed", err);
+      } else {
+        console.warn("[buzzer-sound-store] profiles watch failed", code ?? err);
+      }
+    },
+  );
 }
 
 /**

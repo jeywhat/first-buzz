@@ -234,8 +234,8 @@
       }
     },
     "profiles": {
+      ".read": "auth != null",
       "$uid": {
-        ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid",
         "buzzerSound": {
           ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9_-]{1,64}$/)"
