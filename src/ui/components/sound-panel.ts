@@ -12,6 +12,7 @@ import {
   setMuted,
   setPreferredSound,
   setVolume,
+  subscribeAudioStatus,
   unlockAudioFromUserGesture,
 } from "../../services/buzzerAudioService";
 import {
@@ -137,6 +138,9 @@ export function createSoundPanel(opts: { uid: UserId }): SoundPanelHandles {
     }
   }
   syncEnableVisibility();
+  // Auto-unlock (first user gesture) flips the status to ready with no user
+  // action on this panel: keep the button/hint in sync automatically.
+  const unAudioStatus = subscribeAudioStatus(() => syncEnableVisibility());
 
   function announce(msg: string): void {
     liveRegion.textContent = msg;
@@ -217,6 +221,7 @@ export function createSoundPanel(opts: { uid: UserId }): SoundPanelHandles {
     },
     dispose() {
       // no listeners to remove beyond root removal; liveRegion etc will be GC'd
+      unAudioStatus();
     },
   };
 }

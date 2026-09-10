@@ -32,6 +32,15 @@ let audioStatus: AudioStatus = "uninitialized";
 const processedEventKeys = new Set<string>();
 const activeSources = new Set<AudioScheduledSourceNode>();
 
+/** Observers kept in sync when the audio readiness changes (UI hints). */
+const statusListeners = new Set<(status: AudioStatus) => void>();
+
+function setAudioStatus(next: AudioStatus): void {
+  if (audioStatus === next) return;
+  audioStatus = next;
+  for (const listener of statusListeners) listener(next);
+}
+
 /** Decoded mp3 cache — one fetch+decode per sound id per tab. */
 const bufferCache = new Map<string, AudioBuffer>();
 const pendingDecodes = new Map<string, Promise<AudioBuffer>>();
@@ -135,7 +144,7 @@ export function setPreferredSound(id: BuzzerSoundId): void {
 
 export async function unlockAudioFromUserGesture(): Promise<AudioUnlockResult> {
   if (!isAudioSupported()) {
-    audioStatus = "unsupported";
+    setAudioStatus("unsupported");
     devWarn("unsupported: AudioContext not available");
     return { status: "unsupported", reason: "Web Audio API not supported" };
   }
@@ -143,7 +152,7 @@ export async function unlockAudioFromUserGesture(): Promise<AudioUnlockResult> {
   try {
     const Ctor = getAudioContextCtor();
     if (!Ctor) {
-      audioStatus = "unsupported";
+      setAudioStatus("unsupported");
       return { status: "unsupported", reason: "AudioContext unavailable" };
     }
 
@@ -163,7 +172,7 @@ export async function unlockAudioFromUserGesture(): Promise<AudioUnlockResult> {
     }
 
     if (audioContext.state === "running") {
-      audioStatus = "ready";
+      setAudioStatus("ready");
       devLog("unlock ready");
       // Fire-and-forget preload of the preferred sound: the first buzz then
       // plays instantly from cache.
@@ -172,16 +181,84 @@ export async function unlockAudioFromUserGesture(): Promise<AudioUnlockResult> {
       });
       return { status: "ready" };
     } else {
-      audioStatus = "blocked";
+      setAudioStatus("blocked");
       devWarn("blocked: state=", audioContext.state);
       return { status: "blocked", reason: `AudioContext state: ${audioContext.state}` };
     }
   } catch (err) {
-    audioStatus = "blocked";
+    setAudioStatus("blocked");
     const msg = err instanceof Error ? err.message : String(err);
     devWarn("unlock blocked error", msg);
     return { status: "blocked", reason: msg };
   }
+}
+
+/**
+ * Notifies `listener` of the current audio status and every later change.
+ * Immediately invoked with the current value (no missed initial state).
+ */
+export function subscribeAudioStatus(
+  listener: (status: AudioStatus) => void,
+): () => void {
+  statusListeners.add(listener);
+  listener(audioStatus);
+  return () => statusListeners.delete(listener);
+}
+
+/** Gestures that count as a valid browser user activation. */
+const AUTO_UNLOCK_EVENTS = ["pointerdown", "keydown", "touchend"] as const;
+let autoUnlockInstalled = false;
+
+/**
+ * Auto-enables game sound on the FIRST natural user interaction instead of
+ * asking for a dedicated "Enable game sounds" tap.
+ *
+ * Browser autoplay policy: an AudioContext can only be created/resumed from
+ * a user gesture, so zero-interaction autoplay is impossible. But every
+ * player necessarily performs a gesture to enter a room (typing their name,
+ * pressing Join/Create, tapping anywhere), and this installs global
+ * capture-phase listeners that unlock on that very first action. The gesture
+ * listeners remove themselves once audio is ready (or unsupported); a
+ * visibility listener stays for best-effort re-resume after a tab switch.
+ * Idempotent.
+ */
+export function installAudioAutoUnlock(): void {
+  if (autoUnlockInstalled || typeof document === "undefined") return;
+  autoUnlockInstalled = true;
+
+  function removeGestureListeners(): void {
+    for (const event of AUTO_UNLOCK_EVENTS) {
+      document.removeEventListener(event, onGesture, true);
+    }
+  }
+
+  function onGesture(): void {
+    void unlockAudioFromUserGesture().then((result) => {
+      if (result.status === "ready" || result.status === "unsupported") {
+        removeGestureListeners();
+      }
+    });
+  }
+
+  function onVisibilityChange(): void {
+    // Browsers may suspend the context while the tab is hidden; resume when
+    // it becomes visible again. Best effort (may be rejected without a
+    // gesture) — the gesture listeners already unlocked it once.
+    if (document.visibilityState !== "visible") return;
+    if (!audioContext || audioContext.state !== "suspended") return;
+    void audioContext
+      .resume()
+      .then(() => {
+        if (audioContext?.state === "running") setAudioStatus("ready");
+      })
+      .catch(() => undefined);
+  }
+
+  for (const event of AUTO_UNLOCK_EVENTS) {
+    document.addEventListener(event, onGesture, true);
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  devLog("auto-unlock installed (first-gesture)");
 }
 
 function ensureReadyForPlayback(): boolean {
@@ -322,7 +399,7 @@ export function disposeAudio(): void {
     audioContext = null;
     masterGain = null;
   }
-  audioStatus = "uninitialized";
+  setAudioStatus("uninitialized");
   devLog("disposeAudio");
 }
 

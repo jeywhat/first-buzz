@@ -83,9 +83,11 @@ import { setupKeyboardBuzz } from "./lib/keyboard-buzz";
 import {
   clearProcessedEventKeys,
   getAudioStatus,
+  installAudioAutoUnlock,
   markEventProcessed,
   playWinnerSound,
   stopActiveSounds,
+  subscribeAudioStatus,
   unlockAudioFromUserGesture,
 } from "./services/buzzerAudioService";
 import {
@@ -348,6 +350,11 @@ async function enterRoom(
       localMedia.unlockLocalMediaFromTrustedGesture(),
     );
     const unLocalMedia = localMedia.subscribe((s) => mediaUnlockCard.render(s));
+    // Keep the local "Enable game sounds" hint in sync with the global audio
+    // readiness: auto-unlock on first gesture clears it without any tap.
+    const unAudioStatus = subscribeAudioStatus(() =>
+      localMedia.noteAudioStatus(getAudioStatus()),
+    );
 
     // iOS/mobile activation screen: BLOCKING overlay until the first
     // activation tap (restricted clients only — never on desktop).
@@ -1111,6 +1118,7 @@ async function enterRoom(
       unKeyboard();
       unLocalMedia();
       unLocalActivation();
+      unAudioStatus();
       mediaUnlockCard.dispose();
       mediaActivationOverlay.dispose();
       unParticipants();
@@ -1219,6 +1227,9 @@ async function route(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
+  // Unlock game audio on the first natural interaction so players never need
+  // a dedicated "Enable game sounds" tap (browsers still require one gesture).
+  installAudioAutoUnlock();
   window.addEventListener("popstate", () => void route());
 
   await route();
