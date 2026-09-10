@@ -113,7 +113,7 @@ export function canTriggerBuzzFromKeyboard(
     if (role && EXCLUDED_ROLES.has(role)) return false;
     if (el.classList.contains("vb-modal") || el.closest?.(".vb-modal")) return false;
     // Convention: any ancestor marked data-disable-buzz-shortcuts (e.g. the
-    // manual-scoring form) suppresses global buzz shortcuts while focused.
+    // Players panel rows/footer) suppresses global buzz shortcuts while focused.
     if (el.hasAttribute("data-disable-buzz-shortcuts")) return false;
     el = el.parentElement;
   }

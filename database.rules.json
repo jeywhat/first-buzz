@@ -52,6 +52,10 @@
           "videoSessionId": {
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000",
             ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid"
+          },
+          "forceSeek": {
+            ".validate": "newData.isBoolean()",
+            ".write": "auth != null && root.child('rooms/' + $roomId + '/meta/hostUid').val() === auth.uid"
           }
         },
         "game": {

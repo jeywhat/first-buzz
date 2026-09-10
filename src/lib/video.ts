@@ -18,11 +18,22 @@ function pushVideoChange(
   ).then(() => undefined);
 }
 
+export interface PlaybackWriteOptions {
+  /**
+   * Hard re-anchor: clients seek to `positionSec` even if their drift is
+   * within tolerance. Used by the manual re-sync and by the host resume so
+   * every client is bit-exact after a buzz pause. Never set by the periodic
+   * heartbeat (would cause a visible re-seek every interval).
+   */
+  forceSeek?: boolean;
+}
+
 /** Host action: start playback from an explicit position. */
 export function requestPlay(
   code: RoomCode,
   uid: UserId,
   positionSec: number,
+  opts: PlaybackWriteOptions = {},
 ): Promise<void> {
   return pushVideoChange(code, (cur) => ({
     videoId: cur?.videoId ?? "",
@@ -33,6 +44,7 @@ export function requestPlay(
     seq: (cur?.seq ?? 0) + 1,
     activeQueueItemId: cur?.activeQueueItemId ?? null,
     videoSessionId: cur?.videoSessionId ?? 0,
+    forceSeek: opts.forceSeek === true,
   }));
 }
 
@@ -51,6 +63,7 @@ export function requestPause(
     seq: (cur?.seq ?? 0) + 1,
     activeQueueItemId: cur?.activeQueueItemId ?? null,
     videoSessionId: cur?.videoSessionId ?? 0,
+    forceSeek: false,
   }));
 }
 
@@ -69,12 +82,15 @@ export function requestSeek(
     seq: (cur?.seq ?? 0) + 1,
     activeQueueItemId: cur?.activeQueueItemId ?? null,
     videoSessionId: cur?.videoSessionId ?? 0,
+    forceSeek: false,
   }));
 }
 
 /**
  * Host action: manual re-sync broadcast. Re-anchors position for EVERYONE
- * while preserving the current playing flag (unlike requestPlay/requestPause).
+ * while preserving the current playing flag (unlike requestPlay/requestPause)
+ * and forces an exact seek on every client (forceSeek), so the button has a
+ * visible, deterministic effect even when a client was within drift tolerance.
  */
 export function requestResync(
   code: RoomCode,
@@ -90,6 +106,7 @@ export function requestResync(
     seq: (cur?.seq ?? 0) + 1,
     activeQueueItemId: cur?.activeQueueItemId ?? null,
     videoSessionId: cur?.videoSessionId ?? 0,
+    forceSeek: true,
   }));
 }
 

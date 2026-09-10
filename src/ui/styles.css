@@ -793,6 +793,16 @@ button {
   background: var(--vb-tertiary);
 }
 
+/* Host-only video actions (↻ Resync) — pinned to the right of the meta bar,
+   outside the shell and never inside the buzzer zone. */
+.vb-video-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ---------- VIDEO SHELL — neutral rendering context ----------
    No transform/filter/backdrop-filter/mask/clip-path here or on any
    ancestor of the iframe. Geometry kept identical to the proven fix. */
@@ -1716,6 +1726,16 @@ button {
   opacity: 0.55;
 }
 
+/* ---------- Host-only danger footer (Reset scores) ---------- */
+
+.vb-players-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--vb-ink);
+}
+
 /* ---------- Host-only score adjustment buttons ---------- */
 
 .vb-score-adjust {
@@ -1974,65 +1994,8 @@ button {
 }
 
 /* ============================================================
-   Host panel
+   Danger link (Reset scores — Players panel footer)
    ============================================================ */
-
-.vb-host-panel {
-  background: var(--vb-card);
-  border: var(--vb-outline);
-  border-radius: 20px;
-  padding: 12px 14px;
-  box-shadow: var(--vb-hard-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.vb-host-panel__label {
-  font-family: var(--vb-font-display);
-  font-size: 0.7rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--vb-tertiary-dark);
-}
-
-.vb-host-buzz-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  user-select: none;
-}
-
-.vb-host-buzz-toggle {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--vb-primary);
-  cursor: pointer;
-  margin: 0;
-}
-
-.vb-host-buzz-text {
-  font-family: var(--vb-font-display);
-  font-weight: 700;
-}
-
-.vb-host-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.vb-host-row-left {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
 
 .vb-link-danger {
   background: none;
@@ -2050,135 +2013,10 @@ button {
   color: var(--vb-danger-hover);
 }
 
-/* ============================================================
-   Manual scoring (host)
-   ============================================================ */
-
-.vb-scoring {
-  background: var(--vb-card);
-  border: var(--vb-outline);
-  border-radius: 20px;
-  padding: 12px 14px;
-  box-shadow: var(--vb-hard-shadow);
-}
-
-.vb-scoring-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  max-height: 230px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  margin-bottom: 10px;
-  padding-right: 2px;
-}
-
-.vb-scoring-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.vb-scoring-row--offline .vb-scoring-name {
-  opacity: 0.5;
-}
-
-.vb-scoring-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--vb-font-display);
-  font-weight: 800;
-  font-size: 0.82rem;
-}
-
-.vb-scoring-value {
-  flex: none;
-  min-width: 2.2em;
-  text-align: right;
-  font-family: var(--vb-font-display);
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-
-.vb-scoring-row .vb-btn--small {
-  flex: none;
-  padding: 4px 9px;
-  font-size: 0.72rem;
-}
-
-.vb-scoring-more {
-  position: relative;
-  flex: none;
-}
-
-.vb-scoring-more-summary {
-  list-style: none;
-  cursor: pointer;
-  user-select: none;
-  border: 1.5px solid var(--vb-ink);
-  border-radius: 8px;
-  padding: 2px 8px;
-  font-family: var(--vb-font-display);
-  font-weight: 900;
-  font-size: 0.75rem;
-  background: var(--vb-card);
-}
-
-.vb-scoring-more-summary::-webkit-details-marker {
-  display: none;
-}
-
-.vb-scoring-more-box {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 20;
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-  background: var(--vb-card);
-  border: var(--vb-outline-thin);
-  border-radius: 12px;
-  box-shadow: var(--vb-hard-shadow-sm);
-}
-
-.vb-scoring-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.vb-scoring-form-row {
-  display: flex;
-  gap: 6px;
-}
-
-.vb-scoring-select {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-}
-
-.vb-scoring-amount {
-  flex: none;
-  width: 72px;
-  padding: 8px 10px;
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.vb-scoring-reason {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-  padding: 8px 10px;
-  font-size: 0.85rem;
+.vb-link-danger:disabled,
+.vb-link-danger--pending {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 /* ============================================================

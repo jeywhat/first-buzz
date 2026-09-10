@@ -25,4 +25,11 @@ export interface VideoState {
   activeQueueItemId?: string | null;
   /** Bumped by the host on every queue launch; invalidates old sessions. */
   videoSessionId?: number;
+  /**
+   * Hard re-anchor request (manual "Resync video" and host resume after a
+   * buzz). When true, clients seek to the authoritative position even if
+   * they were within drift tolerance. Absent/false for normal writes and the
+   * periodic heartbeat.
+   */
+  forceSeek?: boolean;
 }

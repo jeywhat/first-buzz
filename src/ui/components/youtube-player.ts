@@ -1,6 +1,7 @@
 import type { VideoState } from "../../types";
 import {
   computeExpectedPositionSec,
+  isForcedResync,
   isStaleSequence,
   planPausedAnchor,
   shouldSeekTo,
@@ -662,10 +663,11 @@ export function createYoutubePlayer(
       return;
     }
 
-    if (!didInitialSync) {
-      // Startup / late-join anchor while PLAYING: snap once to the
-      // authoritative position. `seekTo()` from CUED here is intentional —
-      // playback is wanted, and it starts at the requested position.
+    if (!didInitialSync || isForcedResync(state)) {
+      // Startup / late-join anchor while PLAYING, or a forced re-sync (manual
+      // "Resync video" / host resume after a buzz): snap to the authoritative
+      // position. `seekTo()` from CUED here is intentional — playback is
+      // wanted, and it starts at the requested position.
       didInitialSync = true;
       if (current !== null && Math.abs(current - target) > 0.05) {
         player.seekTo(target, true);

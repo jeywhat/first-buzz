@@ -41,6 +41,15 @@ export function shouldSeekTo(
   return Math.abs(currentSec - targetSec) > toleranceSec;
 }
 
+/**
+ * True when the host explicitly requested a hard re-anchor (manual "Resync
+ * video" or the resume-after-buzz write). Such snapshots bypass the drift
+ * tolerance so every client lands on the exact authoritative position.
+ */
+export function isForcedResync(state: Pick<VideoState, "forceSeek">): boolean {
+  return state.forceSeek === true;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Paused anchoring (YouTube IFrame API hazard)                       */
 /* ------------------------------------------------------------------ */

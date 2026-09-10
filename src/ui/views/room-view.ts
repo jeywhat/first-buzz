@@ -16,14 +16,15 @@ import type { ParticipantView } from "../../types/participant";
  *       section.vb-video-column
  *         section.vb-video-card
  *           div.vb-video-meta     — YouTube badge + title chip
+ *                                   + host-only ↻ Resync video action
  *           div.vb-video-shell    — player mounts here (neutral context)
  *           div.vb-buzz-popup-region
  *       aside.vb-game-sidebar
  *         (arenaSlot)             — Buzzer stage w/ mechanical buzzer
  *         participants            — Players panel: presence, avatar, score,
- *                                   host-only −/+ adjustments (single source)
+ *                                   host-only −/+ adjustments + reset scores
  *         (host tools appended by main.ts)
- *         settings drawer         — sound + diagnostics + advanced scoring
+ *         settings drawer         — sound + diagnostics
  */
 export function renderRoomView(opts: {
   code: string;
@@ -32,6 +33,12 @@ export function renderRoomView(opts: {
   onLeave(): void;
   /** Canonical host score adjustment (adjustPlayerScore via main.ts). */
   onAdjustScore(targetUid: string, delta: number): Promise<void>;
+  /** Host-only: canonical resync broadcast (requestResync via main.ts). */
+  onResync(): Promise<void>;
+  /** Host-only: canonical score reset (resetScores via main.ts). */
+  onResetScores(): Promise<void>;
+  /** Host-only: reset-confirmation modal state for keyboard-buzz suppression. */
+  onModalOpenChange?(open: boolean): void;
 }): RoomViewHandles {
   const root = document.createElement("main");
   root.className = "vb-room-page";
@@ -184,6 +191,34 @@ export function renderRoomView(opts: {
   titleChip.textContent = "Live quiz arena";
   videoMeta.append(sourceBadge, titleChip);
 
+  // Host-only video controls live in the meta bar (NEVER inside the shell or
+  // the buzzer zone): ↻ Resync broadcasts the current host position to every
+  // client. Always present regardless of round/playback state. Disables itself
+  // while the canonical write is in flight.
+  if (opts.isHost) {
+    const actions = document.createElement("div");
+    actions.className = "vb-video-actions";
+
+    const resyncBtn = document.createElement("button");
+    resyncBtn.type = "button";
+    resyncBtn.className = "vb-btn vb-btn--ghost vb-btn--small vb-video-resync";
+    resyncBtn.textContent = "↻ Resync video";
+    resyncBtn.setAttribute("data-disable-buzz-shortcuts", "");
+    resyncBtn.addEventListener("click", () => {
+      if (resyncBtn.disabled) return;
+      resyncBtn.disabled = true;
+      // Errors are toasted by the canonical wrapper in main.ts.
+      void opts
+        .onResync()
+        .catch(() => undefined)
+        .finally(() => {
+          resyncBtn.disabled = false;
+        });
+    });
+    actions.append(resyncBtn);
+    videoMeta.append(actions);
+  }
+
   const videoShell = document.createElement("div");
   videoShell.className = "vb-video-shell";
   // (player root + idle empty state are inserted here by main.ts)
@@ -209,6 +244,8 @@ export function renderRoomView(opts: {
     uid: opts.uid,
     isHost: opts.isHost,
     onAdjust: (target, delta) => opts.onAdjustScore(target.uid, delta),
+    onResetScores: opts.onResetScores,
+    onModalOpenChange: opts.onModalOpenChange,
   });
 
   const settings = document.createElement("details");

@@ -13,6 +13,18 @@ export interface ParticipantListOptions {
    * Resolves after the Firebase write is acknowledged.
    */
   onAdjust(target: ParticipantView, delta: number): Promise<void>;
+  /**
+   * Host-only: canonical score reset (resetScores via main.ts). When provided,
+   * a danger footer with a confirmation modal renders at the BOTTOM of the
+   * panel. Resolves after the Firebase write is acknowledged. Non-hosts never
+   * see the control, whether or not this is passed.
+   */
+  onResetScores?(): Promise<void>;
+  /**
+   * Host-only: reports the reset confirmation modal opening/closing so the
+   * global keyboard-buzz shortcut stays suppressed while it is open.
+   */
+  onModalOpenChange?(open: boolean): void;
 }
 
 interface PlayerRowRefs {
@@ -65,7 +77,76 @@ export function renderParticipantList(opts: ParticipantListOptions): {
   header.append(title, count);
 
   const listEl = el("ul", "vb-player-list");
-  root.append(header, listEl);
+
+  /* ---------- host-only danger footer: reset every score ---------- */
+  const doReset = opts.isHost ? opts.onResetScores : undefined;
+
+  if (doReset) {
+    const footer = el("div", "vb-players-footer");
+    footer.setAttribute("data-disable-buzz-shortcuts", "");
+
+    const resetBtn = el("button", "vb-link-danger", "Reset scores");
+    resetBtn.type = "button";
+    footer.append(resetBtn);
+
+    /* Confirmation modal — same copy as the former host panel. */
+    const modal = el("div", "vb-modal");
+    modal.hidden = true;
+
+    const modalBox = el("div", "vb-modal__box");
+    modalBox.setAttribute("role", "dialog");
+    modalBox.setAttribute("aria-modal", "true");
+
+    const modalTitle = el("h3", "vb-modal__title", "Reset all scores?");
+    const modalText = el(
+      "p",
+      "vb-modal__text",
+      "Every player's score goes back to 0. This cannot be undone.",
+    );
+
+    const modalActions = el("div", "vb-modal__actions");
+    const modalCancel = el("button", "vb-btn vb-btn--ghost vb-btn--small", "Keep scores");
+    modalCancel.type = "button";
+    const modalConfirm = el("button", "vb-btn vb-btn--small vb-btn--danger", "Reset to 0");
+    modalConfirm.type = "button";
+    modalActions.append(modalCancel, modalConfirm);
+    modalBox.append(modalTitle, modalText, modalActions);
+    modal.append(modalBox);
+
+    const notifyModal = (open: boolean): void => opts.onModalOpenChange?.(open);
+
+    let resetting = false;
+
+    resetBtn.addEventListener("click", () => {
+      if (resetting) return;
+      modal.hidden = false;
+      notifyModal(true);
+    });
+    modalCancel.addEventListener("click", () => {
+      modal.hidden = true;
+      notifyModal(false);
+    });
+    modalConfirm.addEventListener("click", () => {
+      modal.hidden = true;
+      notifyModal(false);
+      if (resetting) return;
+      resetting = true;
+      resetBtn.disabled = true;
+      resetBtn.classList.add("vb-link-danger--pending");
+      // Errors are toasted by the canonical wrapper in main.ts.
+      void doReset()
+        .catch(() => undefined)
+        .finally(() => {
+          resetting = false;
+          resetBtn.disabled = false;
+          resetBtn.classList.remove("vb-link-danger--pending");
+        });
+    });
+
+    root.append(header, listEl, footer, modal);
+  } else {
+    root.append(header, listEl);
+  }
 
   /* ---------- rows, keyed by uid (in-place updates) ---------- */
   const rows = new Map<UserId, PlayerRowRefs>();

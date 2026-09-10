@@ -115,14 +115,3 @@ export async function touchRoomActivity(code: RoomCode): Promise<void> {
     lastActivityAt: serverNow(),
   });
 }
-
-/**
- * Host-only: toggles whether the host may also buzz. Rules restrict the write
- * to the room host and validate the value as a boolean. The buzzer's enabled
- * state is derived from this flag via evaluateBuzz().
- */
-export async function setAllowHostToBuzz(code: RoomCode, allow: boolean): Promise<void> {
-  await update(ref(getFirebaseDatabase(), roomMetaPath(code)), {
-    allowHostToBuzz: allow,
-  });
-}

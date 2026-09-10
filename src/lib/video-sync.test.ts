@@ -3,6 +3,7 @@ import type { VideoState } from "../types";
 import {
   computeExpectedPositionSec,
   getDriftToleranceSec,
+  isForcedResync,
   isStaleSequence,
   planPausedAnchor,
   shouldSeekTo,
@@ -125,5 +126,13 @@ describe("planPausedAnchor", () => {
   it("honours a custom tolerance", () => {
     expect(planPausedAnchor(CUED, 42, 42.5, 0.75)).toEqual({ kind: "none" });
     expect(planPausedAnchor(CUED, 42, 44, 0.75)).toEqual({ kind: "cue", positionSec: 44 });
+  });
+});
+
+describe("isForcedResync", () => {
+  it("is true only for an explicit forceSeek flag", () => {
+    expect(isForcedResync({ forceSeek: true })).toBe(true);
+    expect(isForcedResync({ forceSeek: false })).toBe(false);
+    expect(isForcedResync({})).toBe(false);
   });
 });

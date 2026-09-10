@@ -221,6 +221,7 @@ export async function launchQueueItem(
       seq: (curVideo.seq ?? 0) + 1,
       activeQueueItemId: itemId,
       videoSessionId: (curVideo.videoSessionId ?? 0) + 1,
+      forceSeek: false,
     },
     // Safe round reset that ALSO opens the new round automatically: the
     // moment every client switches to the video (same seq/session bump),

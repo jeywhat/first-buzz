@@ -37,7 +37,6 @@ import {
   fetchRoom,
   fetchRoomStatus,
   parseRoomCode,
-  setAllowHostToBuzz,
 } from "./lib/rooms";
 import * as presenceService from "./services/presenceService";
 import {
@@ -99,12 +98,7 @@ import {
   createYoutubePlayer,
   type YoutubePlayerHandles,
 } from "./ui/components/youtube-player";
-import {
-  createHostPanel,
-  type HostPanelHandles,
-} from "./ui/components/host-panel";
 import { createToastHost } from "./ui/components/toast";
-import { createManualScoring } from "./ui/components/manual-scoring";
 import { createScoreFeed } from "./ui/components/score-feed";
 import { renderEntryView } from "./ui/views/entry-view";
 import { renderRoomView } from "./ui/views/room-view";
@@ -233,10 +227,12 @@ async function enterRoom(
     const metaSnap = await get(ref(db, `${roomPath(code)}/meta`));
     const meta = (metaSnap.val() ?? {}) as {
       hostUid?: string;
-      allowHostToBuzz?: boolean;
     };
     const isHost = meta.hostUid === uid;
-    let allowHostToBuzz = meta.allowHostToBuzz === true;
+    // The host ALWAYS may buzz — the former per-room toggle was removed. The
+    // /meta/allowHostToBuzz field is still written at creation time because the
+    // security rules read it, but the client no longer toggles or reads it.
+    const allowHostToBuzz = true;
 
     const view = renderRoomView({
       code,
@@ -249,13 +245,27 @@ async function enterRoom(
         showEntry();
       },
       onAdjustScore: (targetUid, delta) => applyScoreAdjust(targetUid, delta),
+      onResync: () =>
+        runModeration(
+          () => requestResync(code, uid, player?.getPosition() ?? 0),
+          "Re-sync broadcast to everyone",
+        ),
+      onResetScores: () =>
+        runModeration(
+          () => resetScores(code, participants.map((p) => p.uid)),
+          "All scores reset to 0",
+        ),
+      onModalOpenChange: (open) => {
+        hostModalOpen = open;
+        syncModalFlag();
+      },
     });
 
     /* ---------------- Canonical host score adjustment ----------------
        THE single UI wrapper around adjustPlayerScore (scoring.ts).
-       Used by the Players panel rows, the buzzer stage and the
-       advanced scoring form — never a second write path. Errors are
-       toasted here so callers only manage their pending state. */
+       Used by the Players panel rows and the buzzer stage — never a
+       second write path. Errors are toasted here so callers only manage
+       their pending state. */
     async function applyScoreAdjust(
       targetUid: UserId,
       delta: number,
@@ -501,7 +511,11 @@ async function enterRoom(
       resumeAndOpenNextRound(code, latestVideoSessionId)
         .then((res) => {
           if (!res.committed) return; // duplicate or stale → no playback write
-          return requestPlay(code, uid, player?.getPosition() ?? 0);
+          // forceSeek: after a buzz pause every client snapped its own local
+          // pause; the resume must hard re-anchor EVERYONE to the host position.
+          return requestPlay(code, uid, player?.getPosition() ?? 0, {
+            forceSeek: true,
+          });
         })
         .catch(() => undefined)
         .finally(() => {
@@ -536,18 +550,26 @@ async function enterRoom(
     /* Host moderation */
     let moderating = false;
     let participants: ParticipantView[] = [];
-    let hostPanel: HostPanelHandles | null = null;
 
-    const runModeration = (action: () => Promise<unknown>, okMessage: string): void => {
-      if (moderating) return;
+    /**
+     * Shared in-flight guard for the host moderation writes (resync, reset).
+     * Returns a Promise so the initiating control can reflect its own pending /
+     * disabled state; success and error toasts are handled here. The controls
+     * themselves are rendered near the video (resync) and in the Players panel
+     * (reset) — there is no host panel.
+     */
+    const runModeration = (action: () => Promise<unknown>, okMessage: string): Promise<void> => {
+      if (moderating) return Promise.resolve();
       moderating = true;
-      hostPanel?.setBusy(true);
-      action()
-        .then(() => toasts.show(okMessage, "success"))
-        .catch((err) => toasts.show(describeDbError(err), "error"))
+      return action()
+        .then(() => {
+          toasts.show(okMessage, "success");
+        })
+        .catch((err) => {
+          toasts.show(describeDbError(err), "error");
+        })
         .finally(() => {
           moderating = false;
-          hostPanel?.setBusy(false);
         });
     };
 
@@ -555,51 +577,10 @@ async function enterRoom(
        buzzed round into a new cooldown round (roundNumber+1, winner cleared),
        (2) resume playback via exactly one requestPlay. The prior winner key
        is already processed and the round node is replaced, so nothing
-       replays. Shared by the buzzer and the popup — no second path. The host
-       panel intentionally has no resume/open-next buttons anymore. */
+       replays. Shared by the buzzer and the popup — no second path. */
     buzzPopup.setActions({ onResumeAndNext: () => doResume() });
 
-    if (isHost) {
-      hostPanel = createHostPanel({
-        onResync: () =>
-          runModeration(
-            () => requestResync(code, uid, player?.getPosition() ?? 0),
-            "Re-sync broadcast to everyone",
-          ),
-        onResetScores: () =>
-          runModeration(
-            () => resetScores(code, participants.map((p) => p.uid)),
-            "All scores reset to 0",
-          ),
-        onToggleHostBuzz: (allow) => {
-          allowHostToBuzz = allow;
-          buzzPanel.setContext({
-            playerId: uid,
-            viewerIsHost: isHost,
-            allowHostToBuzz: allow,
-            hasPendingAttempt: false,
-          });
-          void setAllowHostToBuzz(code, allow).catch(() => {
-            // Revert on failure so UI and server stay consistent.
-            allowHostToBuzz = !allow;
-            hostPanel?.setHostBuzzAllowed(allowHostToBuzz);
-            buzzPanel.setContext({
-              playerId: uid,
-              viewerIsHost: isHost,
-              allowHostToBuzz: allowHostToBuzz,
-              hasPendingAttempt: false,
-            });
-            toasts.show("Could not update host buzz setting.", "error");
-          });
-        },
-      });
-      hostPanel.setHostBuzzAllowed(allowHostToBuzz);
-      // Host controls live INSIDE the settings drawer (⚙️ Settings &
-      // diagnostics) — the sidebar keeps only the player queue.
-      view.settingsContent.append(hostPanel.root);
-    }
-
-    /* ---------------- Advanced scoring (host, in settings drawer) -------- */
+    /* ---------------- Playback session tracking (audit context) -------- */
     // Tracks the CURRENT playback session so audit events stay contextual.
     let latestVideoSessionId: number | null = null;
 
@@ -608,13 +589,6 @@ async function enterRoom(
     const scoreFeed = createScoreFeed();
     view.settingsContent.append(scoreFeed.root);
 
-    const scoring = isHost
-      ? createManualScoring({
-          // Same canonical wrapper as the player rows — no second path.
-          onAdjust: (target, delta, reason) => applyScoreAdjust(target.uid, delta, reason),
-        })
-      : null;
-    if (scoring) view.settingsContent.append(scoring.root);
 
     /* Diagnostics (collapsible, read-only) */
     let lastSyncedPos: number | null = null;
@@ -625,8 +599,9 @@ async function enterRoom(
     });
     diagnostics.setRole(isHost);
     diagnostics.setRoomCode(code);
-    // Diagnostics live inside the settings drawer — never in the default view.
-    view.settingsContent.append(diagnostics.root);
+    // Diagnostics live in the ⚙️ Settings modal, directly BELOW the Sound
+    // section — never in the default room view.
+    view.settingsModal.content.append(diagnostics.root);
 
     app.replaceChildren(view.root);
 
@@ -689,10 +664,6 @@ async function enterRoom(
     const syncModalFlag = (): void => {
       modalOpen = hostModalOpen || settingsModalOpen;
     };
-    hostPanel?.onModalOpenChange?.((open: boolean) => {
-      hostModalOpen = open;
-      syncModalFlag();
-    });
     view.settingsModal.onOpenChange((open: boolean) => {
       settingsModalOpen = open;
       syncModalFlag();
@@ -770,7 +741,6 @@ async function enterRoom(
           list.length,
         );
         stage.setRoomData(list, latestRound, uid);
-        scoring?.setParticipants(list);
         // Buzzer sound choice is room-independent (global /profiles node) —
         // the room participant list no longer drives the sound panel.
       },
